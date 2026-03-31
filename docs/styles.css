@@ -10,6 +10,8 @@
   --good: #55d27e;
   --warn: #ff9f43;
   --bad: #ff5a6d;
+  --focus: rgba(132, 196, 255, 0.95);
+  --surface-glass: rgba(16, 23, 37, 0.88);
 }
 
 * {
@@ -22,7 +24,14 @@ html {
 
 body {
   margin: 0;
-  font-family: Inter, Segoe UI, Arial, sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   font-size: calc(16px * var(--ui-scale));
   background: radial-gradient(circle at top, #18243b 0%, var(--bg) 55%);
   color: var(--text);
@@ -318,9 +327,23 @@ body {
 
 .stats {
   display: flex;
-  gap: 12px;
+  gap: 8px;
   flex-wrap: wrap;
   color: var(--muted);
+  align-items: center;
+}
+
+.stats #hp,
+.stats #scrap,
+.stats #floor {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 11px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.045);
+  border: 1px solid rgba(130, 170, 255, 0.22);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
 }
 
 #audioStatus {
@@ -554,9 +577,6 @@ button {
 #settingsBtn {
   background: linear-gradient(180deg, #5a7cff 0%, #405dcf 100%);
   color: var(--text);
-  grid-column: 1 / -1;
-  width: 100%;
-  display: block;
   border-color: rgba(166, 193, 255, 0.55);
   box-shadow:
     0 12px 24px rgba(52, 78, 178, 0.4),
@@ -601,10 +621,48 @@ button:active {
   filter: brightness(0.98);
 }
 
+button:focus-visible,
+.tile:focus-visible,
+.splash-start-btn:focus-visible,
+.splash-secondary-btn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--focus);
+}
+
+#endTurnBtn:focus-visible,
+#dashBtn:focus-visible,
+#restartBtn:focus-visible,
+#settingsBtn:focus-visible,
+#howToBtn:focus-visible,
+#faqBtn:focus-visible,
+#whatsNewBtn:focus-visible,
+#statsBtn:focus-visible,
+#reportBugBtn:focus-visible {
+  outline: none;
+  box-shadow:
+    0 0 0 2px var(--bg),
+    0 0 0 4px var(--focus),
+    0 8px 18px rgba(37, 56, 93, 0.35);
+}
+
+.relic-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 4px var(--focus);
+}
+
+.close-btn:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--bg), 0 0 0 3px var(--focus);
+}
+
 .modal {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.6);
+  background: rgba(0, 0, 0, 0.52);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   display: grid;
   place-items: center;
   padding: 20px;
@@ -617,10 +675,13 @@ button:active {
 
 .modal-content {
   width: min(420px, 100%);
-  background: #101725;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 14px;
+  background: var(--surface-glass);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 16px;
   padding: 16px;
+  box-shadow:
+    0 24px 48px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06);
 }
 
 .relic-options {
@@ -629,8 +690,14 @@ button:active {
 }
 
 .relic-btn {
-  background: #233353;
+  background: linear-gradient(180deg, #2c3f66 0%, #233353 100%);
   color: var(--text);
+  border: 1px solid rgba(110, 154, 255, 0.28);
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+
+.relic-btn:hover {
+  filter: brightness(1.08);
 }
 
 .info-modal-content {
@@ -894,5 +961,22 @@ label {
     grid-column: 1 / -1;
     width: 100%;
     display: block;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .splash-relic-glow,
+  .floor-transition.show .floor-transition__label,
+  .floor-transition.show .floor-transition__subtitle,
+  .floor-transition.tone-danger .floor-transition__label,
+  .log--success,
+  .log--danger {
+    animation: none !important;
+  }
+
+  button,
+  .tile,
+  .relic-btn {
+    transition-duration: 0.01ms !important;
   }
 }
