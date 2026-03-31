@@ -239,6 +239,16 @@ button {
   color: var(--text);
 }
 
+@media (max-width: 640px) {
+  .controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #settingsBtn {
+    grid-column: 1 / -1;
+  }
+}
+
 #howToBtn,
 #faqBtn,
 #whatsNewBtn,
