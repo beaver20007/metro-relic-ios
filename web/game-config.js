@@ -12,14 +12,21 @@ window.GAME_CONFIG = {
     difficulty: "normal",
     soundEnabled: true,
     volume: 70,
-    locale: "ru"
+    locale: "ru",
+    theme: "default",
+    runMode: "random"
   },
   defaultMetrics: {
     runs: 0,
     wins: 0,
     defeats: 0,
     maxFloorReached: 1,
-    lastPlayedAt: null
+    lastPlayedAt: null,
+    achievements: {
+      first_win: false,
+      first_boss_kill: false,
+      flawless_floor1: false
+    }
   },
   floorStations: {
     1: "Станция: Речной вокзал",

@@ -48,7 +48,37 @@ window.MetroRelicI18n = {
         progressHeading: "Прогресс",
         progressHint: "Можно начать новый забег и очистить текущее автосохранение.",
         applyDifficulty: "Применить сложность и начать новый забег",
-        resetRun: "Сбросить прогресс и начать новый забег"
+        resetRun: "Сбросить прогресс и начать новый забег",
+        themeHeading: "Тема оформления",
+        themeHint: "Цветовой акцент интерфейса.",
+        themeDefault: "Классика",
+        themeNeon: "Неон",
+        themeAmber: "Янтарь",
+        runModeHeading: "Режим забега",
+        runModeHint: "Ежедневный забег: одна и та же расстановка для всех в этот день (по локальной дате).",
+        runModeRandom: "Случайный",
+        runModeDaily: "Ежедневный"
+      },
+      runSummary: {
+        winTitle: "Забег завершён",
+        defeatTitle: "Забег окончился",
+        winReason: "Ты выбрался из метро.",
+        defeatReason: "Ты погиб в туннелях.",
+        defeatDetailEnemy: "Последний удар — обычный враг.",
+        defeatDetailBoss: "Последний удар — босс.",
+        timeLabel: "Время",
+        floorLabel: "Этаж",
+        scrapLabel: "Трофеи",
+        again: "Ещё раз",
+        openStats: "Статистика",
+        durationFmt: "{m} мин {s} с",
+        durationFmtShort: "{s} с"
+      },
+      achievements: {
+        heading: "Достижения",
+        first_win: "Первая победа",
+        first_boss_kill: "Победа над боссом",
+        flawless_floor1: "Без урона: этаж 1"
       },
       statsModal: {
         title: "Статистика",
@@ -58,7 +88,9 @@ window.MetroRelicI18n = {
         defeats: "Поражений: {n}",
         maxFloor: "Максимальный этаж: {m}/{t}",
         lastPlay: "Последняя игра: {when}",
-        never: "еще не было"
+        never: "еще не было",
+        achievementsSection: "Достижения",
+        achievementsNone: "Пока нет — играй дальше!"
       },
       logs: {
         continueRun: "Продолжаем последний забег.",
@@ -287,7 +319,37 @@ window.MetroRelicI18n = {
         progressHeading: "Progress",
         progressHint: "Start a fresh run and clear the current autosave.",
         applyDifficulty: "Apply difficulty & new run",
-        resetRun: "Clear save & new run"
+        resetRun: "Clear save & new run",
+        themeHeading: "Theme",
+        themeHint: "Accent colors for the UI.",
+        themeDefault: "Classic",
+        themeNeon: "Neon",
+        themeAmber: "Amber",
+        runModeHeading: "Run mode",
+        runModeHint: "Daily run: same layout for everyone today (local calendar date).",
+        runModeRandom: "Random",
+        runModeDaily: "Daily"
+      },
+      runSummary: {
+        winTitle: "Run complete",
+        defeatTitle: "Run over",
+        winReason: "You escaped the metro.",
+        defeatReason: "You died in the tunnels.",
+        defeatDetailEnemy: "Final blow: regular enemy.",
+        defeatDetailBoss: "Final blow: boss.",
+        timeLabel: "Time",
+        floorLabel: "Floor",
+        scrapLabel: "Scrap",
+        again: "Play again",
+        openStats: "Statistics",
+        durationFmt: "{m} min {s} sec",
+        durationFmtShort: "{s} sec"
+      },
+      achievements: {
+        heading: "Achievements",
+        first_win: "First win",
+        first_boss_kill: "Boss defeated",
+        flawless_floor1: "No damage: floor 1"
       },
       statsModal: {
         title: "Statistics",
@@ -297,7 +359,9 @@ window.MetroRelicI18n = {
         defeats: "Defeats: {n}",
         maxFloor: "Best floor: {m}/{t}",
         lastPlay: "Last played: {when}",
-        never: "never"
+        never: "never",
+        achievementsSection: "Achievements",
+        achievementsNone: "None yet — keep playing!"
       },
       logs: {
         continueRun: "Resuming your last run.",

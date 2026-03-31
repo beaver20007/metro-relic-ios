@@ -1,7 +1,7 @@
 {
   "name": "metro-relic-ios-bootstrap",
   "version": "1.0.0",
-  "assetVersion": "20260401-7",
+  "assetVersion": "20260401-9",
   "private": true,
   "description": "Offline turn-based roguelite prototype ready for iOS wrapping via Capacitor.",
   "engines": {
@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@capacitor/core": "8.3.0",
+    "@capacitor/haptics": "^8.0.2",
     "@capacitor/ios": "8.3.0"
   },
   "devDependencies": {

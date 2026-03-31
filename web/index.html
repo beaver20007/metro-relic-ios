@@ -6,8 +6,13 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="format-detection" content="telephone=no" />
+    <meta name="theme-color" content="#131b2b" />
+    <meta name="description" content="Metro Relic — пошаговый рогалик 7×7, оффлайн в браузере." />
     <title>Metro Relic</title>
-    <link rel="stylesheet" href="./styles.css?v=20260401-7" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./icons/icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+    <link rel="stylesheet" href="./styles.css?v=20260401-9" />
   </head>
   <body>
     <div id="splashScreen" class="splash">
@@ -69,10 +74,22 @@
       </div>
     </div>
 
-    <script src="./game-config.js?v=20260401-7"></script>
-    <script src="./locale-bundles.js?v=20260401-7"></script>
-    <script src="./pure-grid.js?v=20260401-7"></script>
-    <script src="./victory-sfx-presets.js?v=20260401-7"></script>
-    <script src="./game.js?v=20260401-7"></script>
+    <div id="runSummaryModal" class="modal hidden" aria-hidden="true">
+      <div class="modal-content run-summary-card">
+        <h2 id="runSummaryTitle">Итог забега</h2>
+        <p id="runSummaryReason" class="run-summary-reason"></p>
+        <ul id="runSummaryList" class="run-summary-list"></ul>
+        <div class="run-summary-actions">
+          <button id="runSummaryAgainBtn" type="button" class="run-summary-primary"></button>
+          <button id="runSummaryStatsBtn" type="button" class="run-summary-secondary"></button>
+        </div>
+      </div>
+    </div>
+
+    <script src="./game-config.js?v=20260401-9"></script>
+    <script src="./locale-bundles.js?v=20260401-9"></script>
+    <script src="./pure-grid.js?v=20260401-9"></script>
+    <script src="./victory-sfx-presets.js?v=20260401-9"></script>
+    <script src="./game.js?v=20260401-9"></script>
   </body>
 </html>

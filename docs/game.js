@@ -127,7 +127,10 @@ const state = {
   over: false,
   transitioning: false,
   pickingRelic: false,
-  dashArmNextMove: false
+  dashArmNextMove: false,
+  runStartedAt: Date.now(),
+  damageTakenThisFloor: 0,
+  oneShotFlash: false
 };
 
 const appRoot = document.querySelector(".app");
@@ -154,6 +157,12 @@ const infoModal = document.getElementById("infoModal");
 const infoModalTitle = document.getElementById("infoModalTitle");
 const infoModalBody = document.getElementById("infoModalBody");
 const infoModalCloseBtn = document.getElementById("infoModalCloseBtn");
+const runSummaryModal = document.getElementById("runSummaryModal");
+const runSummaryTitle = document.getElementById("runSummaryTitle");
+const runSummaryReason = document.getElementById("runSummaryReason");
+const runSummaryList = document.getElementById("runSummaryList");
+const runSummaryAgainBtn = document.getElementById("runSummaryAgainBtn");
+const runSummaryStatsBtn = document.getElementById("runSummaryStatsBtn");
 const audioStatusEl = document.getElementById("audioStatus");
 let floorTransitionEl = null;
 let audioCtx = null;
@@ -199,8 +208,96 @@ const VICTORY_SFX_ALIASES = {
 };
 const ACTIVE_VICTORY_SFX = externalVictoryConfig.active || "победа один";
 
+let runRngFn = null;
+
+function mulberry32(seed) {
+  let a = seed >>> 0;
+  return function next() {
+    let t = (a += 0x6d2b79f5);
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function combineDailySeed(difficultyKey) {
+  const d = new Date();
+  const n = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  const h = String(difficultyKey || "n")
+    .split("")
+    .reduce((acc, ch) => acc + ch.charCodeAt(0), 0);
+  return Math.imul(n ^ 0x5e33d17c, 1009) + h;
+}
+
+function initRunRng() {
+  const settings = loadSettings();
+  if (settings.runMode === "daily") {
+    runRngFn = mulberry32(combineDailySeed(settings.difficulty) >>> 0);
+  } else {
+    runRngFn = null;
+  }
+}
+
+function gameRand01() {
+  if (runRngFn) return runRngFn();
+  return Math.random();
+}
+
 function rand(max) {
-  return Math.floor(Math.random() * max);
+  return Math.floor(gameRand01() * max);
+}
+
+function hapticLight() {
+  try {
+    const Haptics = window.Capacitor?.Plugins?.Haptics;
+    if (Haptics?.impact) {
+      void Haptics.impact({ style: "LIGHT" });
+      return;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(12);
+    }
+  } catch (e2) {
+    /* ignore */
+  }
+}
+
+function hapticMedium() {
+  try {
+    const Haptics = window.Capacitor?.Plugins?.Haptics;
+    if (Haptics?.impact) {
+      void Haptics.impact({ style: "MEDIUM" });
+      return;
+    }
+  } catch (e) {
+    /* ignore */
+  }
+  try {
+    if (typeof navigator !== "undefined" && navigator.vibrate) {
+      navigator.vibrate(22);
+    }
+  } catch (e2) {
+    /* ignore */
+  }
+}
+
+function flashPlayerTile() {
+  try {
+    if (typeof window === "undefined" || !grid) return;
+    requestAnimationFrame(() => {
+      const idx = state.player.y * size + state.player.x;
+      const btn = grid.children[idx];
+      if (!btn) return;
+      btn.classList.add("tile-flash");
+      setTimeout(() => btn.classList.remove("tile-flash"), 220);
+    });
+  } catch (e) {
+    /* ignore */
+  }
 }
 
 function setLog(msg, tone = "default") {
@@ -324,7 +421,11 @@ function loadMetrics() {
     if (!data || typeof data !== "object") return { ...DEFAULT_METRICS };
     return {
       ...DEFAULT_METRICS,
-      ...data
+      ...data,
+      achievements: {
+        ...DEFAULT_METRICS.achievements,
+        ...(data.achievements && typeof data.achievements === "object" ? data.achievements : {})
+      }
     };
   } catch (e) {
     console.error("Failed to load metrics", e);
@@ -347,7 +448,19 @@ function patchMetrics(patch) {
     ...current,
     ...patch
   };
+  if (patch.achievements && typeof patch.achievements === "object") {
+    next.achievements = {
+      ...current.achievements,
+      ...patch.achievements
+    };
+  }
   saveMetrics(next);
+}
+
+function unlockAchievement(key) {
+  const m = loadMetrics();
+  if (!m.achievements || m.achievements[key]) return;
+  patchMetrics({ achievements: { [key]: true } });
 }
 
 function getAudioContext() {
@@ -599,6 +712,8 @@ function tryDashMove(dx, dy) {
   state.player.x = ex;
   state.player.y = ey;
   state.dashCharges -= 1;
+  state.oneShotFlash = true;
+  hapticLight();
   return true;
 }
 
@@ -628,6 +743,7 @@ function updateDashButton() {
 }
 
 function spawnFloor() {
+  state.damageTakenThisFloor = 0;
   const preset = getDifficultyPreset();
   state.enemies = [];
   state.player = { x: 0, y: 0 };
@@ -731,7 +847,9 @@ function saveGame() {
       player: { ...state.player },
       exit: { ...state.exit },
       enemies: state.enemies.map((e) => ({ ...e })),
-      over: state.over
+      over: state.over,
+      runStartedAt: state.runStartedAt,
+      damageTakenThisFloor: state.damageTakenThisFloor
     };
     window.localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
   } catch (e) {
@@ -762,6 +880,11 @@ function loadGame() {
     state.over = Boolean(data.over);
     state.pickingRelic = false;
     state.dashArmNextMove = false;
+    state.runStartedAt =
+      typeof data.runStartedAt === "number" ? data.runStartedAt : Date.now();
+    state.damageTakenThisFloor =
+      typeof data.damageTakenThisFloor === "number" ? data.damageTakenThisFloor : 0;
+    initRunRng();
 
     return true;
   } catch (e) {
@@ -810,10 +933,14 @@ function normalizeSettings(settings) {
     ? safe.difficulty
     : DEFAULT_SETTINGS.difficulty;
   const locale = safe.locale === "en" ? "en" : "ru";
+  const theme = ["default", "neon", "amber"].includes(safe.theme) ? safe.theme : DEFAULT_SETTINGS.theme;
+  const runMode = safe.runMode === "daily" ? "daily" : "random";
   return {
     uiScale: normalizedScale,
     difficulty,
     locale,
+    theme,
+    runMode,
     soundEnabled: safe.soundEnabled !== false,
     volume: Number.isFinite(Number(safe.volume))
       ? Math.min(100, Math.max(0, Number(safe.volume)))
@@ -832,6 +959,12 @@ function applySettingsToUi(settings) {
       scale = Math.min(scale, 1);
     }
     root.style.setProperty("--ui-scale", String(scale));
+    const th = normalizeSettings(settings).theme;
+    if (th === "default") {
+      root.removeAttribute("data-theme");
+    } else {
+      root.setAttribute("data-theme", th);
+    }
   } catch (e) {
     console.error("Failed to apply settings", e);
   }
@@ -900,16 +1033,37 @@ function openSettings() {
         <span id="volumeValue"></span>
       </label>
     </p>
+    <h3>${S.themeHeading}</h3>
+    <p>
+      <label>
+        ${S.themeHint}
+        <select id="themeSelect">
+          <option value="default">${S.themeDefault}</option>
+          <option value="neon">${S.themeNeon}</option>
+          <option value="amber">${S.themeAmber}</option>
+        </select>
+      </label>
+    </p>
+    <h3>${S.runModeHeading}</h3>
+    <p>
+      <label>
+        ${S.runModeHint}
+        <select id="runModeSelect">
+          <option value="random">${S.runModeRandom}</option>
+          <option value="daily">${S.runModeDaily}</option>
+        </select>
+      </label>
+    </p>
     <h3>${S.progressHeading}</h3>
     <p>${S.progressHint}</p>
     <button id="settingsApplyBtn" type="button">${S.applyDifficulty}</button>
     <button id="settingsResetRunBtn" type="button">${S.resetRun}</button>
   `;
 
-  openInfoModal("howTo");
-  if (!infoModalTitle || !infoModalBody) return;
+  if (!infoModal || !infoModalTitle || !infoModalBody) return;
   infoModalTitle.textContent = S.title;
   infoModalBody.innerHTML = modalBody;
+  infoModal.classList.remove("hidden");
 
   const uiScaleSelect = document.getElementById("uiScaleSelect");
   const difficultySelect = document.getElementById("difficultySelect");
@@ -917,6 +1071,8 @@ function openSettings() {
   const soundToggle = document.getElementById("soundToggle");
   const volumeRange = document.getElementById("volumeRange");
   const volumeValue = document.getElementById("volumeValue");
+  const themeSelect = document.getElementById("themeSelect");
+  const runModeSelect = document.getElementById("runModeSelect");
   if (uiScaleSelect) {
     uiScaleSelect.value = String(settings.uiScale);
   }
@@ -934,6 +1090,12 @@ function openSettings() {
   }
   if (volumeValue) {
     volumeValue.textContent = `${settings.volume}%`;
+  }
+  if (themeSelect) {
+    themeSelect.value = settings.theme === "amber" || settings.theme === "neon" ? settings.theme : "default";
+  }
+  if (runModeSelect) {
+    runModeSelect.value = settings.runMode === "daily" ? "daily" : "random";
   }
 
   uiScaleSelect?.addEventListener("change", () => {
@@ -985,6 +1147,24 @@ function openSettings() {
     playSfx("ui");
   });
 
+  themeSelect?.addEventListener("change", () => {
+    settings = {
+      ...settings,
+      theme: themeSelect.value === "neon" || themeSelect.value === "amber" ? themeSelect.value : "default"
+    };
+    saveSettings(settings);
+    applySettingsToUi(settings);
+  });
+
+  runModeSelect?.addEventListener("change", () => {
+    settings = {
+      ...settings,
+      runMode: runModeSelect.value === "daily" ? "daily" : "random"
+    };
+    saveSettings(settings);
+    initRunRng();
+  });
+
   const applyBtn = document.getElementById("settingsApplyBtn");
   if (applyBtn) {
     applyBtn.addEventListener("click", () => {
@@ -1015,6 +1195,19 @@ function openStatsModal() {
     ? new Date(m.lastPlayedAt).toLocaleString(loc)
     : tf("statsModal.never");
   const sm = getLocaleBundle().statsModal;
+  const ach = m.achievements || {};
+  const achBundle = getLocaleBundle().achievements || {};
+  const achKeys = ["first_win", "first_boss_kill", "flawless_floor1"];
+  const unlocked = achKeys.filter((k) => ach[k]);
+  const achBlock =
+    unlocked.length === 0
+      ? `<p class="stats-achievements-none">${sm.achievementsNone}</p>`
+      : `<div class="achievement-chips">${unlocked
+          .map(
+            (k) =>
+              `<span class="achievement-chip">${achBundle[k] || k}</span>`
+          )
+          .join("")}</div>`;
   infoModalTitle.textContent = sm.title;
   infoModalBody.innerHTML = `
     <h3>${sm.section}</h3>
@@ -1025,6 +1218,8 @@ function openStatsModal() {
       <li>${tf("statsModal.maxFloor", { m: m.maxFloorReached, t: totalFloors })}</li>
       <li>${tf("statsModal.lastPlay", { when: formattedTime })}</li>
     </ul>
+    <h3>${sm.achievementsSection}</h3>
+    ${achBlock}
   `;
   infoModal.classList.remove("hidden");
 }
@@ -1210,6 +1405,8 @@ function closeInfoModal() {
 
 function render() {
   updateStats();
+  const doFlash = Boolean(state.oneShotFlash);
+  state.oneShotFlash = false;
   grid.innerHTML = "";
 
   for (let y = 0; y < size; y += 1) {
@@ -1232,18 +1429,25 @@ function render() {
   }
 
   saveGame();
+  if (doFlash) {
+    flashPlayerTile();
+  }
 }
 
 function attackEnemy(enemy) {
   const preset = getDifficultyPreset();
   enemy.hp -= state.playerDamage;
   playSfx("attack");
+  hapticLight();
   setLog(tf("logs.hit", { dmg: state.playerDamage }));
   if (enemy.hp <= 0) {
     const baseScrap = enemy.boss ? 5 : 2;
     const gainedScrap = Math.max(1, Math.round(baseScrap * preset.scrapMultiplier));
     state.scrap += gainedScrap;
     const gain = formatTrophies(gainedScrap);
+    if (enemy.boss) {
+      unlockAchievement("first_boss_kill");
+    }
     setLog(
       enemy.boss
         ? tf("logs.bossKill", { gain })
@@ -1256,10 +1460,13 @@ function enemyTurn() {
   for (const enemy of state.enemies.filter((e) => e.hp > 0)) {
     const dist = manhattan(enemy, state.player);
     if (dist === 1) {
+      const prevHp = state.hp;
       state.hp -= enemy.damage;
+      state.damageTakenThisFloor += Math.max(0, prevHp - state.hp);
       playSfx("hit");
+      hapticMedium();
       if (state.hp <= 0) {
-        finishRunAsDefeat();
+        finishRunAsDefeat({ killedByBoss: Boolean(enemy.boss) });
         return;
       }
       continue;
@@ -1284,40 +1491,118 @@ function floorCleared() {
   return P.floorCleared(state.enemies);
 }
 
+function formatRunDuration(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const sec = s % 60;
+  if (m <= 0) return tf("runSummary.durationFmtShort", { s: sec });
+  return tf("runSummary.durationFmt", { m, s: sec });
+}
+
+function closeRunSummary() {
+  try {
+    if (!runSummaryModal) return;
+    runSummaryModal.classList.add("hidden");
+    runSummaryModal.setAttribute("aria-hidden", "true");
+  } catch (e) {
+    console.error("Failed to close run summary", e);
+  }
+}
+
+function openRunSummary(opts) {
+  const rs = getLocaleBundle().runSummary;
+  if (!runSummaryModal || !rs) return;
+  const win = opts.outcome === "win";
+  if (runSummaryTitle) runSummaryTitle.textContent = win ? rs.winTitle : rs.defeatTitle;
+  if (runSummaryReason) {
+    if (win) {
+      runSummaryReason.textContent = rs.winReason;
+    } else {
+      const detail =
+        opts.killedByBoss === true ? rs.defeatDetailBoss : rs.defeatDetailEnemy;
+      runSummaryReason.textContent = `${rs.defeatReason}\n${detail}`;
+    }
+  }
+  if (runSummaryList) {
+    runSummaryList.innerHTML = "";
+    const mk = (label, value) => {
+      const li = document.createElement("li");
+      const span = document.createElement("span");
+      span.textContent = label;
+      const strong = document.createElement("strong");
+      strong.textContent = value;
+      li.appendChild(span);
+      li.appendChild(strong);
+      runSummaryList.appendChild(li);
+    };
+    mk(rs.timeLabel, formatRunDuration(opts.durationMs));
+    mk(rs.floorLabel, `${opts.floorReached}/${totalFloors}`);
+    mk(rs.scrapLabel, formatTrophies(opts.scrap));
+  }
+  if (runSummaryAgainBtn) runSummaryAgainBtn.textContent = rs.again;
+  if (runSummaryStatsBtn) runSummaryStatsBtn.textContent = rs.openStats;
+  runSummaryModal.classList.remove("hidden");
+  runSummaryModal.setAttribute("aria-hidden", "false");
+}
+
 function finishRunAsWin() {
   state.over = true;
+  clearSavedGame();
   const metrics = loadMetrics();
+  const newWins = metrics.wins + 1;
   patchMetrics({
-    wins: metrics.wins + 1,
+    wins: newWins,
     maxFloorReached: Math.max(metrics.maxFloorReached, totalFloors),
-    lastPlayedAt: new Date().toISOString()
+    lastPlayedAt: new Date().toISOString(),
+    achievements: {
+      ...(newWins === 1 ? { first_win: true } : {})
+    }
   });
   playSfx("win");
   setLog(tf("logs.win", { scrap: formatTrophies(state.scrap) }), "success");
+  const durationMs = Math.max(0, Date.now() - (state.runStartedAt || Date.now()));
   showFloorTransition(
     tf("transitions.victoryTitle"),
     tf("transitions.victoryLoot", { scrap: formatTrophies(state.scrap) }),
     "success",
     RESULT_ANNOUNCE_MS
-  );
+  ).then(() => {
+    openRunSummary({
+      outcome: "win",
+      durationMs,
+      floorReached: totalFloors,
+      scrap: state.scrap
+    });
+  });
   render();
   return true;
 }
 
-function finishRunAsDefeat() {
+function finishRunAsDefeat(meta = {}) {
   state.over = true;
+  clearSavedGame();
   patchMetrics({
     defeats: loadMetrics().defeats + 1,
     lastPlayedAt: new Date().toISOString()
   });
   playSfx("death");
   setLog(tf("logs.defeat"), "danger");
+  const durationMs = Math.max(0, Date.now() - (state.runStartedAt || Date.now()));
   showFloorTransition(
     tf("transitions.defeatTitle"),
     tf("transitions.defeatSubtitle"),
     "danger",
     RESULT_ANNOUNCE_MS
-  );
+  ).then(() => {
+    openRunSummary({
+      outcome: "defeat",
+      durationMs,
+      floorReached: state.floor,
+      scrap: state.scrap,
+      killedByBoss: meta.killedByBoss === true
+    });
+  });
+  render();
 }
 
 function startRelicChoiceThenAdvanceToNextFloor() {
@@ -1344,6 +1629,9 @@ function advanceToNextFloor() {
     "floor",
     FLOOR_TRANSITION_MS
   ).then(() => {
+    if (state.floor === 1 && state.damageTakenThisFloor === 0) {
+      unlockAchievement("flawless_floor1");
+    }
     state.floor = nextFloor;
     patchMetrics({
       maxFloorReached: Math.max(loadMetrics().maxFloorReached, state.floor),
@@ -1386,6 +1674,8 @@ function tryUseExit(x, y) {
 
   state.player.x = x;
   state.player.y = y;
+  state.oneShotFlash = true;
+  hapticLight();
   if (state.floor >= totalFloors) {
     return finishRunAsWin();
   }
@@ -1418,6 +1708,8 @@ function onTileTap(x, y) {
 
   state.player.x = x;
   state.player.y = y;
+  state.oneShotFlash = true;
+  hapticLight();
   if (maybeFinishFloor()) return;
   playSfx("move");
   enemyTurn();
@@ -1552,8 +1844,13 @@ function setupKeyboardControls() {
 }
 
 function resetGame() {
+  closeRunSummary();
   const preset = getDifficultyPreset();
   clearSavedGame();
+  initRunRng();
+  state.runStartedAt = Date.now();
+  state.damageTakenThisFloor = 0;
+  state.oneShotFlash = false;
   state.floor = 1;
   state.hp = preset.playerHp;
   state.scrap = 0;
@@ -1582,7 +1879,7 @@ function resetGame() {
 function pickTwoRelics() {
   const bag = [...relicPool];
   for (let i = bag.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = Math.floor(gameRand01() * (i + 1));
     [bag[i], bag[j]] = [bag[j], bag[i]];
   }
   return bag.slice(0, 2);
@@ -1696,6 +1993,30 @@ if (infoModal) {
     if (event.target === infoModal) {
       closeInfoModal();
     }
+  });
+}
+
+if (runSummaryModal) {
+  runSummaryModal.addEventListener("click", (event) => {
+    if (event.target === runSummaryModal) {
+      closeRunSummary();
+    }
+  });
+}
+if (runSummaryAgainBtn) {
+  runSummaryAgainBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    closeRunSummary();
+    resetGame();
+  });
+}
+if (runSummaryStatsBtn) {
+  runSummaryStatsBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    closeRunSummary();
+    openStatsModal();
   });
 }
 
