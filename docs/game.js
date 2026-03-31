@@ -416,6 +416,28 @@ function playTone(frequency, duration, type = "sine", volume = 0.03) {
   }
 }
 
+function playVictoryFanfare() {
+  try {
+    // Протяженная победная фанфара ~3.6с: несколько аккордовых волн.
+    const steps = [
+      { delay: 0, notes: [[146, 0.55, "sawtooth", 0.16], [196, 0.52, "triangle", 0.13]] },
+      { delay: 520, notes: [[174, 0.58, "sawtooth", 0.17], [220, 0.54, "triangle", 0.13]] },
+      { delay: 1060, notes: [[196, 0.62, "sawtooth", 0.18], [246, 0.58, "triangle", 0.14]] },
+      { delay: 1660, notes: [[220, 0.66, "sawtooth", 0.18], [277, 0.62, "square", 0.14]] },
+      { delay: 2320, notes: [[246, 0.72, "triangle", 0.16], [311, 0.7, "square", 0.14]] },
+      { delay: 3020, notes: [[293, 0.86, "square", 0.14], [370, 0.82, "triangle", 0.12]] }
+    ];
+
+    steps.forEach((step) => {
+      setTimeout(() => {
+        step.notes.forEach(([f, d, t, v]) => playTone(f, d, t, v));
+      }, step.delay);
+    });
+  } catch (e) {
+    console.error("Failed to play victory fanfare", e);
+  }
+}
+
 function playSfx(kind) {
   try {
     if (!loadSettings().soundEnabled) return;
@@ -473,11 +495,7 @@ function playSfx(kind) {
       playTone(92, 0.32, "sawtooth", 0.12);
       break;
     case "win":
-      // Яркий "тромбонный" фанфарный акцент: ниже частоты, длиннее хвост, громче.
-      playTone(146, 0.42, "sawtooth", 0.18);
-      playTone(196, 0.38, "sawtooth", 0.16);
-      playTone(246, 0.5, "triangle", 0.14);
-      playTone(293, 0.62, "square", 0.12);
+      playVictoryFanfare();
       break;
     case "transition":
       playTone(260, 0.08, "triangle", 0.09);
