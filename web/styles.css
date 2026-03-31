@@ -192,6 +192,8 @@ body {
 
 .tile.player {
   background: #2f66ff;
+  font-size: 0.78rem;
+  letter-spacing: 0;
 }
 
 .tile.enemy {

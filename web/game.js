@@ -452,10 +452,25 @@ function tileClass(x, y) {
 
 function tileSymbol(x, y) {
   const enemy = state.enemies.find((e) => e.x === x && e.y === y && e.hp > 0);
-  if (state.player.x === x && state.player.y === y) return "P";
+  if (state.player.x === x && state.player.y === y) return `P${state.hp}`;
   if (enemy) return enemy.boss ? "B" : "E";
   if (state.exit.x === x && state.exit.y === y) return "X";
   return "";
+}
+
+function getPlayerTileColor() {
+  try {
+    const baseHp = Math.max(1, getDifficultyPreset().playerHp);
+    const ratio = Math.max(0, Math.min(1, state.hp / baseHp));
+    // ratio 1 -> синий, ratio 0 -> красный
+    const red = Math.round(47 + (176 - 47) * (1 - ratio));
+    const green = Math.round(102 + (34 - 102) * (1 - ratio));
+    const blue = Math.round(255 + (58 - 255) * (1 - ratio));
+    return `rgb(${red}, ${green}, ${blue})`;
+  } catch (e) {
+    console.error("Failed to compute player tile color", e);
+    return "#2f66ff";
+  }
 }
 
 function updateStats() {
@@ -774,6 +789,9 @@ function render() {
       btn.className = tileClass(x, y);
       btn.textContent = tileSymbol(x, y);
       btn.type = "button";
+      if (state.player.x === x && state.player.y === y) {
+        btn.style.background = getPlayerTileColor();
+      }
       btn.addEventListener("click", () => onTileTap(x, y));
       grid.appendChild(btn);
     }
