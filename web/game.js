@@ -22,7 +22,8 @@ const state = {
   over: false,
   transitioning: false
 };
-const FLOOR_TRANSITION_MS = 420;
+const FLOOR_TRANSITION_MS = 1200;
+const RESULT_ANNOUNCE_MS = 1900;
 
 const SAVE_KEY = "metroRelicSaveV1";
 const SETTINGS_KEY = "metroRelicSettingsV1";
@@ -182,7 +183,8 @@ const AUDIO_FILES = {
   attack: "./assets/sfx/attack.mp3",
   hit: "./assets/sfx/hit.mp3",
   death: "./assets/sfx/death.mp3",
-  win: "./assets/sfx/win.mp3"
+  win: "./assets/sfx/win.mp3",
+  transition: "./assets/sfx/transition.mp3"
 };
 
 function rand(max) {
@@ -206,7 +208,10 @@ function ensureFloorTransitionEl() {
     el.setAttribute("aria-hidden", "true");
     el.innerHTML = `
       <div class="floor-transition__bg"></div>
-      <div class="floor-transition__label"></div>
+      <div class="floor-transition__label">
+        <div class="floor-transition__title"></div>
+        <div class="floor-transition__subtitle"></div>
+      </div>
     `;
     document.body.appendChild(el);
     floorTransitionEl = el;
@@ -217,7 +222,7 @@ function ensureFloorTransitionEl() {
   }
 }
 
-function showFloorTransition(labelText) {
+function showFloorTransition(titleText, subtitleText, tone = "floor", durationMs = FLOOR_TRANSITION_MS) {
   return new Promise((resolve) => {
     try {
       const el = ensureFloorTransitionEl();
@@ -225,13 +230,17 @@ function showFloorTransition(labelText) {
         resolve();
         return;
       }
-      const label = el.querySelector(".floor-transition__label");
-      if (label) label.textContent = labelText || "Переход...";
+      const title = el.querySelector(".floor-transition__title");
+      const subtitle = el.querySelector(".floor-transition__subtitle");
+      if (title) title.textContent = titleText || "Переход";
+      if (subtitle) subtitle.textContent = subtitleText || "";
+      el.classList.remove("tone-floor", "tone-success", "tone-danger");
+      el.classList.add(`tone-${tone}`);
       el.classList.add("show");
       setTimeout(() => {
         el.classList.remove("show");
         resolve();
-      }, FLOOR_TRANSITION_MS);
+      }, durationMs);
     } catch (e) {
       console.error("Failed to show floor transition", e);
       resolve();
@@ -358,7 +367,8 @@ async function preloadAudioBuffers() {
     }
 
     const loaded = Object.keys(audioBuffers).length;
-    updateAudioStatus(loaded > 0 ? `mp3 ${loaded}/6` : "fallback");
+    const total = Object.keys(AUDIO_FILES).length;
+    updateAudioStatus(loaded > 0 ? `mp3 ${loaded}/${total}` : "fallback");
   } catch (e) {
     console.error("Failed to preload audio buffers", e);
     updateAudioStatus("fallback");
@@ -453,6 +463,10 @@ function playSfx(kind) {
     case "win":
       playTone(520, 0.1, "sine", 0.06);
       playTone(660, 0.14, "sine", 0.06);
+      break;
+    case "transition":
+      playTone(330, 0.1, "triangle", 0.05);
+      playTone(440, 0.16, "sine", 0.05);
       break;
     case "ui":
       playTone(360, 0.06, "triangle", 0.05);
@@ -914,13 +928,7 @@ function enemyTurn() {
       state.hp -= enemy.damage;
       playSfx("hit");
       if (state.hp <= 0) {
-        state.over = true;
-        patchMetrics({
-          defeats: loadMetrics().defeats + 1,
-          lastPlayedAt: new Date().toISOString()
-        });
-        playSfx("death");
-        setLog("Поражение! Ты погиб в туннелях. Нажми 'Новый забег'.", "danger");
+        finishRunAsDefeat();
         return;
       }
       continue;
@@ -945,14 +953,40 @@ function floorCleared() {
   return state.enemies.every((e) => e.hp <= 0);
 }
 
+function finishRunAsWin() {
+  state.over = true;
+  const metrics = loadMetrics();
+  patchMetrics({
+    wins: metrics.wins + 1,
+    maxFloorReached: Math.max(metrics.maxFloorReached, totalFloors),
+    lastPlayedAt: new Date().toISOString()
+  });
+  playSfx("win");
+  setLog(`Победа! Ты выбрался из метро с ${formatTrophies(state.scrap)}.`, "success");
+  showFloorTransition("ПОБЕДА", `Добыча: ${formatTrophies(state.scrap)}`, "success", RESULT_ANNOUNCE_MS);
+  render();
+  return true;
+}
+
+function finishRunAsDefeat() {
+  state.over = true;
+  patchMetrics({
+    defeats: loadMetrics().defeats + 1,
+    lastPlayedAt: new Date().toISOString()
+  });
+  playSfx("death");
+  setLog("Поражение! Ты погиб в туннелях. Нажми 'Новый забег'.", "danger");
+  showFloorTransition("ПОРАЖЕНИЕ", "Нажми «Новый забег»", "danger", RESULT_ANNOUNCE_MS);
+}
+
 function advanceToNextFloor() {
   if (state.transitioning) return;
   state.transitioning = true;
   const nextFloor = state.floor + 1;
   setLog(`Этаж ${state.floor} пройден. Переход на этаж ${nextFloor}...`, "info");
-  playSfx("ui");
+  playSfx("transition");
 
-  showFloorTransition(`Этаж ${nextFloor}`).then(() => {
+  showFloorTransition(`ЭТАЖ ${nextFloor}`, "Переход...", "floor", FLOOR_TRANSITION_MS).then(() => {
     state.floor = nextFloor;
     patchMetrics({
       maxFloorReached: Math.max(loadMetrics().maxFloorReached, state.floor),
@@ -969,17 +1003,7 @@ function maybeFinishFloor() {
   if (!samePos(state.player, state.exit)) return false;
 
   if (state.floor >= totalFloors) {
-    state.over = true;
-    const metrics = loadMetrics();
-    patchMetrics({
-      wins: metrics.wins + 1,
-      maxFloorReached: Math.max(metrics.maxFloorReached, totalFloors),
-      lastPlayedAt: new Date().toISOString()
-    });
-    playSfx("win");
-    setLog(`Победа! Ты выбрался из метро с ${formatTrophies(state.scrap)}.`, "success");
-    render();
-    return true;
+    return finishRunAsWin();
   }
 
   // Упрощенный и надежный сценарий: сразу переходим на следующий этаж.
@@ -1003,17 +1027,7 @@ function tryUseExit(x, y) {
   state.player.y = y;
   // Прямой надежный переход по X без промежуточных состояний.
   if (state.floor >= totalFloors) {
-    state.over = true;
-    const metrics = loadMetrics();
-    patchMetrics({
-      wins: metrics.wins + 1,
-      maxFloorReached: Math.max(metrics.maxFloorReached, totalFloors),
-      lastPlayedAt: new Date().toISOString()
-    });
-    playSfx("win");
-    setLog(`Победа! Ты выбрался из метро с ${formatTrophies(state.scrap)}.`, "success");
-    render();
-    return true;
+    return finishRunAsWin();
   }
 
   advanceToNextFloor();
