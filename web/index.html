@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Metro Relic</title>
-    <link rel="stylesheet" href="./styles.css?v=20260331-6" />
+    <link rel="stylesheet" href="./styles.css?v=20260401-1" />
   </head>
   <body>
     <div id="splashScreen" class="splash">
@@ -13,16 +13,16 @@
           <div class="splash-relic-core"></div>
         </div>
         <h1 class="splash-title">Metro Relic</h1>
-        <p class="splash-tagline">Выбраться любой ценой</p>
+        <p id="splashTagline" class="splash-tagline">Выбраться любой ценой</p>
         <button id="splashStartBtn" type="button" class="splash-start-btn">Начать забег</button>
         <button id="splashHowToBtn" type="button" class="splash-secondary-btn">Как играть</button>
-        <p class="splash-meta">Тестовая сборка • v0.1</p>
+        <p id="splashMeta" class="splash-meta">Тестовая сборка • v0.1</p>
       </div>
     </div>
 
     <main class="app">
       <header class="topbar">
-        <h1>Metro Relic</h1>
+        <h1 id="topbarTitle">Metro Relic</h1>
         <div class="stats">
           <span id="hp">Жизни: 10</span>
           <span id="scrap">Трофеи: 0</span>
@@ -37,6 +37,7 @@
         <p id="log" class="log">Начало забега. Доберись до выхода.</p>
         <div class="menu-grid">
           <button id="endTurnBtn" type="button">Пропустить ход</button>
+          <button id="dashBtn" type="button">Рывок (0)</button>
           <button id="restartBtn" type="button">Новый забег</button>
           <button id="settingsBtn" type="button">Настройки</button>
           <button id="howToBtn" type="button">Как играть</button>
@@ -46,11 +47,11 @@
           <button id="reportBugBtn" type="button">Сообщить о баге</button>
         </div>
       </section>
-    </main
+    </main>
 
     <div id="relicModal" class="modal hidden">
       <div class="modal-content">
-        <h2>Выбери реликвию</h2>
+        <h2 id="relicModalHeading">Выбери реликвию</h2>
         <div id="relicOptions" class="relic-options"></div>
       </div>
     </div>
@@ -65,7 +66,10 @@
       </div>
     </div>
 
-    <script src="./victory-sfx-presets.js?v=20260331-1"></script>
-    <script src="./game.js?v=20260331-6"></script>
+    <script src="./game-config.js?v=20260401-1"></script>
+    <script src="./locale-bundles.js?v=20260401-1"></script>
+    <script src="./pure-grid.js?v=20260401-1"></script>
+    <script src="./victory-sfx-presets.js?v=20260401-1"></script>
+    <script src="./game.js?v=20260401-1"></script>
   </body>
 </html>

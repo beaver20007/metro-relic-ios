@@ -1,14 +1,119 @@
-const size = 7;
-const totalFloors = 3;
+const {
+  size,
+  totalFloors,
+  floorTransitionMs: FLOOR_TRANSITION_MS,
+  resultAnnounceMs: RESULT_ANNOUNCE_MS,
+  saveKey: SAVE_KEY,
+  settingsKey: SETTINGS_KEY,
+  metricsKey: METRICS_KEY,
+  defaultSettings: DEFAULT_SETTINGS,
+  defaultMetrics: DEFAULT_METRICS,
+  floorStations,
+  difficultyPresets,
+  relicPool,
+  bugReportGithubNewIssueUrl: BUG_REPORT_GITHUB_NEW_ISSUE_URL
+} = window.GAME_CONFIG || {};
+if (!size || !totalFloors || !relicPool || !difficultyPresets) {
+  throw new Error("GAME_CONFIG is missing or incomplete");
+}
 
-const relicPool = [
-  { id: "steel", name: "Стальная обшивка (+3 жизни)", apply: (s) => (s.hp += 3) },
-  { id: "claw", name: "Заточка (+1 урон)", apply: (s) => (s.playerDamage += 1) },
-  { id: "battery", name: "Энергоячейка (+2 трофея)", apply: (s) => (s.scrap += 2) },
-  { id: "boots", name: "Тактические ботинки (рывок раз в бой)", apply: (s) => (s.dashCharges += 1) },
-  { id: "injector", name: "Боевой инжектор (+2 жизни, +1 урон)", apply: (s) => ((s.hp += 2), (s.playerDamage += 1)) },
-  { id: "scrapper", name: "Сборщик трофеев (+4 трофея)", apply: (s) => (s.scrap += 4) }
-];
+const P = globalThis.MetroRelicPure;
+if (!P || typeof P.manhattan !== "function") {
+  throw new Error("MetroRelicPure failed to load (pure-grid.js must precede game.js)");
+}
+const manhattan = P.manhattan;
+const samePos = P.samePos;
+const inBounds = (x, y) => P.inBounds(x, y, size);
+
+if (!window.MetroRelicI18n?.bundles?.ru) {
+  throw new Error("MetroRelicI18n missing (locale-bundles.js must load before game.js)");
+}
+
+function getRawLocale() {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) {
+      return DEFAULT_SETTINGS.locale === "en" ? "en" : "ru";
+    }
+    const raw = window.localStorage.getItem(SETTINGS_KEY);
+    if (!raw) return DEFAULT_SETTINGS.locale === "en" ? "en" : "ru";
+    const data = JSON.parse(raw);
+    return data && data.locale === "en" ? "en" : "ru";
+  } catch {
+    return "ru";
+  }
+}
+
+function getLocaleBundle() {
+  const loc = getRawLocale();
+  return window.MetroRelicI18n.bundles[loc] || window.MetroRelicI18n.bundles.ru;
+}
+
+function tf(path, vars = {}) {
+  const segs = path.split(".");
+  let cur = getLocaleBundle();
+  for (const s of segs) cur = cur?.[s];
+  if (typeof cur !== "string") {
+    console.warn("i18n missing:", path);
+    return path;
+  }
+  return cur.replace(/\{(\w+)\}/g, (_, k) => (vars[k] != null ? String(vars[k]) : `{${k}}`));
+}
+
+function getInfoScreens() {
+  return getLocaleBundle().infoScreens;
+}
+
+function getPresetLabel(key) {
+  const b = getLocaleBundle();
+  if (b.presets && b.presets[key]) return b.presets[key];
+  return difficultyPresets[key]?.label || key;
+}
+
+function getRelicDisplayName(relic) {
+  const v = tf(`relics.${relic.id}`);
+  return v === `relics.${relic.id}` ? relic.name : v;
+}
+
+function applyLocaleToDom() {
+  const d = getLocaleBundle().dom || {};
+  try {
+    document.documentElement.lang = getLocaleBundle().meta?.htmlLang || "ru";
+    const setTxt = (id, text) => {
+      const el = document.getElementById(id);
+      if (el && text != null) el.textContent = text;
+    };
+    setTxt("splashTagline", d.splashTagline);
+    setTxt("splashMeta", d.splashMeta);
+    setTxt("splashStartBtn", d.splashStart);
+    setTxt("splashHowToBtn", d.splashHowTo);
+    setTxt("endTurnBtn", d.endTurn);
+    setTxt("restartBtn", d.restart);
+    setTxt("settingsBtn", d.settings);
+    setTxt("howToBtn", d.howTo);
+    setTxt("faqBtn", d.faq);
+    setTxt("whatsNewBtn", d.whatsNew);
+    setTxt("statsBtn", d.stats);
+    setTxt("reportBugBtn", d.reportBug);
+    setTxt("relicModalHeading", d.relicPickTitle);
+    setTxt("infoModalTitle", d.infoDefaultTitle);
+    if (infoModalCloseBtn && d.closeAria) {
+      infoModalCloseBtn.setAttribute("aria-label", d.closeAria);
+    }
+    if (grid && d.gridAria) grid.setAttribute("aria-label", d.gridAria);
+    if (logEl && d.initialLog) logEl.textContent = d.initialLog;
+  } catch (e) {
+    console.error("applyLocaleToDom", e);
+  }
+}
+
+function getStationByFloor(floor) {
+  const b = getLocaleBundle();
+  if (b.stations && Object.prototype.hasOwnProperty.call(b.stations, floor)) {
+    return b.stations[floor];
+  }
+  if (floorStations[floor]) return floorStations[floor];
+  return b.unknownStation || "?";
+}
 
 const state = {
   floor: 1,
@@ -20,60 +125,9 @@ const state = {
   exit: { x: 6, y: 6 },
   enemies: [],
   over: false,
-  transitioning: false
-};
-const FLOOR_TRANSITION_MS = 1200;
-const RESULT_ANNOUNCE_MS = 1900;
-
-const SAVE_KEY = "metroRelicSaveV1";
-const SETTINGS_KEY = "metroRelicSettingsV1";
-const METRICS_KEY = "metroRelicMetricsV1";
-const DEFAULT_SETTINGS = {
-  uiScale: 1,
-  difficulty: "normal",
-  soundEnabled: true,
-  volume: 70
-};
-const DEFAULT_METRICS = {
-  runs: 0,
-  wins: 0,
-  defeats: 0,
-  maxFloorReached: 1,
-  lastPlayedAt: null
-};
-const floorStations = {
-  1: "Станция: Речной вокзал",
-  2: "Станция: Театральная",
-  3: "Станция: Депо-13"
-};
-const difficultyPresets = {
-  easy: {
-    label: "Легко",
-    playerHp: 12,
-    playerDamage: 3,
-    enemyHpBonus: -1,
-    enemyDamageBonus: 0,
-    enemyCountBonus: -1,
-    scrapMultiplier: 1.2
-  },
-  normal: {
-    label: "Нормально",
-    playerHp: 10,
-    playerDamage: 2,
-    enemyHpBonus: 0,
-    enemyDamageBonus: 0,
-    enemyCountBonus: 0,
-    scrapMultiplier: 1
-  },
-  hard: {
-    label: "Сложно",
-    playerHp: 8,
-    playerDamage: 2,
-    enemyHpBonus: 1,
-    enemyDamageBonus: 1,
-    enemyCountBonus: 1,
-    scrapMultiplier: 0.9
-  }
+  transitioning: false,
+  pickingRelic: false,
+  dashArmNextMove: false
 };
 
 const appRoot = document.querySelector(".app");
@@ -86,6 +140,7 @@ const scrapEl = document.getElementById("scrap");
 const floorEl = document.getElementById("floor");
 const logEl = document.getElementById("log");
 const endTurnBtn = document.getElementById("endTurnBtn");
+const dashBtn = document.getElementById("dashBtn");
 const restartBtn = document.getElementById("restartBtn");
 const settingsBtn = document.getElementById("settingsBtn");
 const howToBtn = document.getElementById("howToBtn");
@@ -101,105 +156,6 @@ const infoModalBody = document.getElementById("infoModalBody");
 const infoModalCloseBtn = document.getElementById("infoModalCloseBtn");
 const audioStatusEl = document.getElementById("audioStatus");
 let floorTransitionEl = null;
-const BUG_REPORT_GITHUB_NEW_ISSUE_URL = "https://github.com/beaver20007/metro-relic-ios/issues/new";
-
-const infoScreens = {
-  howTo: {
-    title: "Как играть",
-    body: `
-      <p>Добро пожаловать в Metro Relic — пошаговую тактическую игру на поле 7x7.</p>
-      <h3>Цель</h3>
-      <ul>
-        <li>Пройти 3 этажа.</li>
-        <li>Уничтожить всех врагов на этаже.</li>
-        <li>Дойти до выхода X.</li>
-      </ul>
-      <h3>Обозначения</h3>
-      <ul>
-        <li>P — игрок</li>
-        <li>E — обычный враг</li>
-        <li>B — босс на последнем этаже</li>
-        <li>X — выход</li>
-      </ul>
-      <h3>Управление</h3>
-      <ul>
-        <li>Свайпай по полю в нужную сторону, чтобы двигаться и атаковать.</li>
-        <li>На клавиатуре используй стрелки или WASD.</li>
-        <li>После твоего действия враги делают ход.</li>
-      </ul>
-    `
-  },
-  faq: {
-    title: "Частые ошибки",
-    body: `
-      <h3>Этаж не завершается на X</h3>
-      <p>В текущей версии этаж должен завершаться сразу при входе на X. Если этого не произошло — это баг, отправь отчёт через форму “Сообщить о баге”.</p>
-      <h3>Не могу сделать ход</h3>
-      <p>Доступны только соседние свободные клетки, диагонали запрещены.</p>
-      <h3>Атака не проходит</h3>
-      <p>Атаковать можно только врага на соседней клетке.</p>
-      <h3>Слишком быстро погибаю</h3>
-      <p>Старайся не входить в окружение, выманивай врагов по одному.</p>
-      <h3>Прогресс не восстановился</h3>
-      <p>Это баг. Сообщи устройство, браузер и шаги, после которых пропал прогресс.</p>
-    `
-  },
-  whatsNew: {
-    title: "Что нового",
-    body: `
-      <p><strong>Текущая тестовая версия:</strong></p>
-      <ul>
-        <li>Добавлено автосохранение прогресса.</li>
-        <li>Подготовлен iOS-билд через Capacitor.</li>
-        <li>Добавлены встроенные экраны инструкции и FAQ.</li>
-        <li>Добавлены звуки действий и экран статистики.</li>
-        <li>Расширены реликвии и атмосфера метро по этажам.</li>
-        <li>Улучшен онбординг для внешних тестеров.</li>
-      </ul>
-    `
-  },
-  reportBug: {
-    title: "Сообщить о баге",
-    body: `
-      <p>Заполни форму ниже: мы соберем готовый отчёт для отправки.</p>
-      <p>
-        <label>
-          Краткий заголовок проблемы
-          <input id="bugTitleInput" type="text" placeholder="Например: На 2 этаже не играет звук победы" />
-        </label>
-      </p>
-      <p>
-        <label>
-          Шаги воспроизведения
-          <textarea id="bugStepsInput" rows="4" placeholder="1) Открыть игру...&#10;2) Сделать ход...&#10;3) Получилось..."></textarea>
-        </label>
-      </p>
-      <p>
-        <label>
-          Ожидаемый результат
-          <textarea id="bugExpectedInput" rows="2" placeholder="Что должно было произойти"></textarea>
-        </label>
-      </p>
-      <p>
-        <label>
-          Фактический результат
-          <textarea id="bugActualInput" rows="2" placeholder="Что произошло на самом деле"></textarea>
-        </label>
-      </p>
-      <p>
-        <label>
-          Контакты (опционально)
-          <input id="bugContactInput" type="text" placeholder="@telegram / email" />
-        </label>
-      </p>
-      <button id="bugCopyBtn" type="button">Скопировать отчёт</button>
-      <button id="bugOpenIssueBtn" type="button">Открыть заявку на GitHub</button>
-      <button id="bugEmailBtn" type="button">Отправить по email</button>
-      <p id="bugReportStatus" style="margin-top:8px; opacity:.9;"></p>
-    `
-  }
-};
-
 let audioCtx = null;
 const AUDIO_VERSION = "20260331-1";
 const audioBuffers = {};
@@ -288,7 +244,7 @@ function showFloorTransition(titleText, subtitleText, tone = "floor", durationMs
       }
       const title = el.querySelector(".floor-transition__title");
       const subtitle = el.querySelector(".floor-transition__subtitle");
-      if (title) title.textContent = titleText || "Переход";
+      if (title) title.textContent = titleText || tf("transitions.genericTitle");
       if (subtitle) subtitle.textContent = subtitleText || "";
       el.classList.remove("tone-floor", "tone-success", "tone-danger");
       el.classList.add(`tone-${tone}`);
@@ -305,6 +261,7 @@ function showFloorTransition(titleText, subtitleText, tone = "floor", durationMs
 }
 
 function formatTrophies(count) {
+  if (getRawLocale() === "en") return `${count} scrap`;
   const n = Math.abs(count) % 100;
   const n1 = n % 10;
   if (n > 10 && n < 20) return `${count} трофеев`;
@@ -314,6 +271,7 @@ function formatTrophies(count) {
 }
 
 function formatLives(count) {
+  if (getRawLocale() === "en") return `${count} HP`;
   const n = Math.abs(count) % 100;
   const n1 = n % 10;
   if (n > 10 && n < 20) return `${count} жизней`;
@@ -322,8 +280,38 @@ function formatLives(count) {
   return `${count} жизней`;
 }
 
+function isAudioDebugEnabled() {
+  try {
+    if (typeof window === "undefined") return false;
+    const q = new URLSearchParams(window.location.search || "");
+    if (q.get("debug") === "1" || q.get("audioDebug") === "1") return true;
+    try {
+      const cap = window.Capacitor;
+      if (cap && typeof cap.isNativePlatform === "function" && cap.isNativePlatform()) {
+        return false;
+      }
+    } catch {
+      /* ignore */
+    }
+    const h = String(window.location.hostname || "");
+    return h === "localhost" || h === "127.0.0.1" || h === "[::1]";
+  } catch {
+    return false;
+  }
+}
+
+function syncAudioDebugIndicator() {
+  try {
+    const root = document.documentElement;
+    if (!root) return;
+    root.classList.toggle("audio-debug", isAudioDebugEnabled());
+  } catch (e) {
+    console.error("syncAudioDebugIndicator", e);
+  }
+}
+
 function updateAudioStatus(label) {
-  if (!audioStatusEl) return;
+  if (!audioStatusEl || !isAudioDebugEnabled()) return;
   audioStatusEl.textContent = `Audio: ${label}`;
 }
 
@@ -360,10 +348,6 @@ function patchMetrics(patch) {
     ...patch
   };
   saveMetrics(next);
-}
-
-function getStationByFloor(floor) {
-  return floorStations[floor] || "Станция: Неизвестная линия";
 }
 
 function getAudioContext() {
@@ -559,21 +543,51 @@ function playSfx(kind) {
   }
 }
 
-function samePos(a, b) {
-  return a.x === b.x && a.y === b.y;
-}
-
-function manhattan(a, b) {
-  return Math.abs(a.x - b.x) + Math.abs(a.y - b.y);
-}
-
-function inBounds(x, y) {
-  return x >= 0 && y >= 0 && x < size && y < size;
-}
-
 function isOccupied(x, y) {
-  if (state.player.x === x && state.player.y === y) return true;
-  return state.enemies.some((e) => e.x === x && e.y === y && e.hp > 0);
+  return P.isCellOccupied(x, y, state.player, state.enemies);
+}
+
+function tryDashMove(dx, dy) {
+  if (dx !== 0 && dy !== 0) return false;
+  if (dx === 0 && dy === 0) return false;
+  if (state.dashCharges <= 0) return false;
+  const px = state.player.x;
+  const py = state.player.y;
+  const mx = px + dx;
+  const my = py + dy;
+  const ex = px + dx * 2;
+  const ey = py + dy * 2;
+  if (!inBounds(mx, my) || !inBounds(ex, ey)) return false;
+  if (isOccupied(mx, my) || isOccupied(ex, ey)) return false;
+  state.player.x = ex;
+  state.player.y = ey;
+  state.dashCharges -= 1;
+  return true;
+}
+
+function afterPlayerActionSequence() {
+  if (maybeFinishFloor()) return;
+  enemyTurn();
+  render();
+  maybeFinishFloor();
+}
+
+function updateDashButton() {
+  if (!dashBtn) return;
+  if (state.over || state.transitioning || state.pickingRelic || state.dashCharges <= 0) {
+    state.dashArmNextMove = false;
+  }
+  const n = Math.max(0, state.dashCharges);
+  dashBtn.textContent = state.dashArmNextMove
+    ? tf("dash.armed", { n })
+    : tf("dash.idle", { n });
+  const block =
+    state.over || state.transitioning || state.pickingRelic || n <= 0;
+  dashBtn.disabled = block;
+  dashBtn.classList.toggle(
+    "dash-armed",
+    Boolean(state.dashArmNextMove && n > 0 && !block)
+  );
 }
 
 function spawnFloor() {
@@ -658,9 +672,14 @@ function getPlayerHpRatio() {
 
 function updateStats() {
   const preset = getDifficultyPreset();
-  hpEl.textContent = `Жизни: ${state.hp}`;
-  scrapEl.textContent = `Трофеи: ${state.scrap}`;
-  floorEl.textContent = `Этаж: ${state.floor}/${totalFloors} • ${preset.label}`;
+  hpEl.textContent = tf("stats.hpLine", { n: state.hp });
+  scrapEl.textContent = tf("stats.scrapLine", { n: state.scrap });
+  floorEl.textContent = tf("stats.floorLine", {
+    cur: state.floor,
+    total: totalFloors,
+    diff: preset.label
+  });
+  updateDashButton();
 }
 
 function saveGame() {
@@ -691,15 +710,7 @@ function loadGame() {
     if (!raw) return false;
 
     const data = JSON.parse(raw);
-    if (
-      !data ||
-      typeof data.floor !== "number" ||
-      typeof data.hp !== "number" ||
-      typeof data.scrap !== "number" ||
-      !data.player ||
-      !data.exit ||
-      !Array.isArray(data.enemies)
-    ) {
+    if (!P.isValidSavePayload(data)) {
       return false;
     }
 
@@ -712,6 +723,8 @@ function loadGame() {
     state.exit = { ...state.exit, ...data.exit };
     state.enemies = data.enemies.map((e) => ({ ...e }));
     state.over = Boolean(data.over);
+    state.pickingRelic = false;
+    state.dashArmNextMove = false;
 
     return true;
   } catch (e) {
@@ -759,9 +772,11 @@ function normalizeSettings(settings) {
   const difficulty = ["easy", "normal", "hard"].includes(safe.difficulty)
     ? safe.difficulty
     : DEFAULT_SETTINGS.difficulty;
+  const locale = safe.locale === "en" ? "en" : "ru";
   return {
     uiScale: normalizedScale,
     difficulty,
+    locale,
     soundEnabled: safe.soundEnabled !== false,
     volume: Number.isFinite(Number(safe.volume))
       ? Math.min(100, Math.max(0, Number(safe.volume)))
@@ -787,28 +802,45 @@ function applySettingsToUi(settings) {
 
 function getDifficultyPreset() {
   const settings = loadSettings();
-  return difficultyPresets[settings.difficulty] || difficultyPresets.normal;
+  const key = ["easy", "normal", "hard"].includes(settings.difficulty) ? settings.difficulty : "normal";
+  const base = difficultyPresets[key] || difficultyPresets.normal;
+  return {
+    ...base,
+    key,
+    label: getPresetLabel(key)
+  };
 }
 
 function openSettings() {
   let settings = loadSettings();
+  const S = getLocaleBundle().settings;
   const modalBody = `
-    <p>Настройки применяются только на этом устройстве.</p>
-    <h3>Сложность</h3>
+    <p>${S.intro}</p>
+    <h3>${S.languageHeading}</h3>
     <p>
       <label>
-        Пресет:
-        <select id="difficultySelect">
-          <option value="easy">Легко</option>
-          <option value="normal">Нормально</option>
-          <option value="hard">Сложно</option>
+        ${S.languageHint}
+        <select id="localeSelect">
+          <option value="ru">${S.languageRu}</option>
+          <option value="en">${S.languageEn}</option>
         </select>
       </label>
     </p>
-    <h3>Размер интерфейса</h3>
+    <h3>${S.difficultyHeading}</h3>
     <p>
       <label>
-        Масштаб:
+        ${S.presetLabel}
+        <select id="difficultySelect">
+          <option value="easy">${tf("presets.easy")}</option>
+          <option value="normal">${tf("presets.normal")}</option>
+          <option value="hard">${tf("presets.hard")}</option>
+        </select>
+      </label>
+    </p>
+    <h3>${S.uiScaleHeading}</h3>
+    <p>
+      <label>
+        ${S.scaleLabel}
         <select id="uiScaleSelect">
           <option value="0.9">90%</option>
           <option value="1">100%</option>
@@ -817,33 +849,34 @@ function openSettings() {
         </select>
       </label>
     </p>
-    <h3>Звук</h3>
+    <h3>${S.soundHeading}</h3>
     <p>
       <label>
         <input id="soundToggle" type="checkbox" />
-        Включен
+        ${S.soundOn}
       </label>
     </p>
     <p>
       <label>
-        Громкость:
+        ${S.volumeLabel}
         <input id="volumeRange" type="range" min="0" max="100" step="1" />
         <span id="volumeValue"></span>
       </label>
     </p>
-    <h3>Прогресс</h3>
-    <p>Можно начать новый забег и очистить текущее автосохранение.</p>
-    <button id="settingsApplyBtn" type="button">Применить сложность и начать новый забег</button>
-    <button id="settingsResetRunBtn" type="button">Сбросить прогресс и начать новый забег</button>
+    <h3>${S.progressHeading}</h3>
+    <p>${S.progressHint}</p>
+    <button id="settingsApplyBtn" type="button">${S.applyDifficulty}</button>
+    <button id="settingsResetRunBtn" type="button">${S.resetRun}</button>
   `;
 
-  openInfoModal("howTo"); // откроет модалку, затем перезапишем содержимое
+  openInfoModal("howTo");
   if (!infoModalTitle || !infoModalBody) return;
-  infoModalTitle.textContent = "Настройки";
+  infoModalTitle.textContent = S.title;
   infoModalBody.innerHTML = modalBody;
 
   const uiScaleSelect = document.getElementById("uiScaleSelect");
   const difficultySelect = document.getElementById("difficultySelect");
+  const localeSelect = document.getElementById("localeSelect");
   const soundToggle = document.getElementById("soundToggle");
   const volumeRange = document.getElementById("volumeRange");
   const volumeValue = document.getElementById("volumeValue");
@@ -852,6 +885,9 @@ function openSettings() {
   }
   if (difficultySelect) {
     difficultySelect.value = settings.difficulty;
+  }
+  if (localeSelect) {
+    localeSelect.value = settings.locale === "en" ? "en" : "ru";
   }
   if (soundToggle) {
     soundToggle.checked = settings.soundEnabled;
@@ -878,6 +914,18 @@ function openSettings() {
       difficulty: difficultySelect.value
     };
     saveSettings(settings);
+  });
+
+  localeSelect?.addEventListener("change", () => {
+    settings = {
+      ...settings,
+      locale: localeSelect.value === "en" ? "en" : "ru"
+    };
+    saveSettings(settings);
+    applyLocaleToDom();
+    playSfx("ui");
+    closeInfoModal();
+    openSettings();
   });
 
   soundToggle?.addEventListener("change", () => {
@@ -907,7 +955,7 @@ function openSettings() {
       closeInfoModal();
       resetGame();
       const preset = getDifficultyPreset();
-      setLog(`Сложность: ${preset.label}. Новый забег начат.`);
+      setLog(tf("logs.difficultyRestart", { label: preset.label }));
       render();
     });
   }
@@ -925,16 +973,20 @@ function openSettings() {
 
 function openStatsModal() {
   const m = loadMetrics();
-  const formattedTime = m.lastPlayedAt ? new Date(m.lastPlayedAt).toLocaleString("ru-RU") : "еще не было";
-  infoModalTitle.textContent = "Статистика";
+  const loc = getLocaleBundle().meta?.dateLocale || "ru-RU";
+  const formattedTime = m.lastPlayedAt
+    ? new Date(m.lastPlayedAt).toLocaleString(loc)
+    : tf("statsModal.never");
+  const sm = getLocaleBundle().statsModal;
+  infoModalTitle.textContent = sm.title;
   infoModalBody.innerHTML = `
-    <h3>Общая</h3>
+    <h3>${sm.section}</h3>
     <ul>
-      <li>Запусков забега: ${m.runs}</li>
-      <li>Побед: ${m.wins}</li>
-      <li>Поражений: ${m.defeats}</li>
-      <li>Максимальный этаж: ${m.maxFloorReached}/${totalFloors}</li>
-      <li>Последняя игра: ${formattedTime}</li>
+      <li>${tf("statsModal.runs", { n: m.runs })}</li>
+      <li>${tf("statsModal.wins", { n: m.wins })}</li>
+      <li>${tf("statsModal.defeats", { n: m.defeats })}</li>
+      <li>${tf("statsModal.maxFloor", { m: m.maxFloorReached, t: totalFloors })}</li>
+      <li>${tf("statsModal.lastPlay", { when: formattedTime })}</li>
     </ul>
   `;
   infoModal.classList.remove("hidden");
@@ -942,7 +994,7 @@ function openStatsModal() {
 
 function openInfoModal(screenKey) {
   try {
-    const screen = infoScreens[screenKey];
+    const screen = getInfoScreens()[screenKey];
     if (!screen || !infoModal || !infoModalTitle || !infoModalBody) return;
     infoModalTitle.textContent = screen.title;
     infoModalBody.innerHTML = screen.body;
@@ -957,47 +1009,50 @@ function openInfoModal(screenKey) {
 
 function buildBugReportText() {
   try {
-    const title = document.getElementById("bugTitleInput")?.value?.trim() || "Баг-репорт";
-    const steps = document.getElementById("bugStepsInput")?.value?.trim() || "Не указано";
-    const expected = document.getElementById("bugExpectedInput")?.value?.trim() || "Не указано";
-    const actual = document.getElementById("bugActualInput")?.value?.trim() || "Не указано";
-    const contact = document.getElementById("bugContactInput")?.value?.trim() || "Не указан";
+    const b = getLocaleBundle().bug;
+    const title = document.getElementById("bugTitleInput")?.value?.trim() || b.defaultTitle;
+    const steps = document.getElementById("bugStepsInput")?.value?.trim() || b.unset;
+    const expected = document.getElementById("bugExpectedInput")?.value?.trim() || b.unset;
+    const actual = document.getElementById("bugActualInput")?.value?.trim() || b.unset;
+    const contact = document.getElementById("bugContactInput")?.value?.trim() || b.noContact;
     const platform = navigator.userAgent || "unknown";
     const currentUrl = window.location.href;
     return {
       title,
       text: [
-        `Заголовок: ${title}`,
+        `${b.lblTitle} ${title}`,
         "",
-        "Шаги воспроизведения:",
+        `${b.lblSteps}`,
         steps,
         "",
-        "Ожидаемый результат:",
+        `${b.lblExpected}`,
         expected,
         "",
-        "Фактический результат:",
+        `${b.lblActual}`,
         actual,
         "",
-        "Контакт:",
+        `${b.lblContact}`,
         contact,
         "",
-        "Техданные:",
-        `URL: ${currentUrl}`,
-        `User-Agent: ${platform}`,
-        `Этаж: ${state.floor}/${totalFloors}`,
-        `Жизни: ${state.hp}`,
-        `Трофеи: ${state.scrap}`,
-        `Состояние: ${state.over ? "run-over" : "in-run"}`
+        `${b.lblTech}`,
+        `${b.lblUrl} ${currentUrl}`,
+        `${b.lblUa} ${platform}`,
+        `${b.lblFloor} ${state.floor}/${totalFloors}`,
+        `${b.lblHp} ${state.hp}`,
+        `${b.lblScrap} ${state.scrap}`,
+        `${b.lblState} ${state.over ? b.stateOver : b.stateRun}`
       ].join("\n")
     };
   } catch (e) {
     console.error("Failed to build bug report text", e);
-    return { title: "Баг-репорт", text: "Не удалось собрать отчёт автоматически." };
+    const b = getLocaleBundle().bug;
+    return { title: b.buildFailTitle, text: b.buildFailText };
   }
 }
 
 function validateBugReportForm() {
   try {
+    const b = getLocaleBundle().bug;
     const titleEl = document.getElementById("bugTitleInput");
     const stepsEl = document.getElementById("bugStepsInput");
     const expectedEl = document.getElementById("bugExpectedInput");
@@ -1008,19 +1063,19 @@ function validateBugReportForm() {
 
     const errors = [];
     if (!titleEl || titleEl.value.trim().length < 6) {
-      errors.push("Заголовок должен быть не короче 6 символов.");
+      errors.push(b.valTitle);
       titleEl?.classList.add("field-error");
     }
     if (!stepsEl || stepsEl.value.trim().length < 10) {
-      errors.push("Опиши шаги воспроизведения (минимум 10 символов).");
+      errors.push(b.valSteps);
       stepsEl?.classList.add("field-error");
     }
     if (!expectedEl || expectedEl.value.trim().length < 6) {
-      errors.push("Укажи ожидаемый результат (минимум 6 символов).");
+      errors.push(b.valExpected);
       expectedEl?.classList.add("field-error");
     }
     if (!actualEl || actualEl.value.trim().length < 6) {
-      errors.push("Укажи фактический результат (минимум 6 символов).");
+      errors.push(b.valActual);
       actualEl?.classList.add("field-error");
     }
 
@@ -1032,7 +1087,7 @@ function validateBugReportForm() {
     console.error("Failed to validate bug report form", e);
     return {
       ok: false,
-      message: "Не удалось проверить форму. Попробуй снова."
+      message: getLocaleBundle().bug.valGeneric
     };
   }
 }
@@ -1054,11 +1109,11 @@ function setupBugReportForm() {
         const report = buildBugReportText();
         try {
           await navigator.clipboard.writeText(report.text);
-          if (statusEl) statusEl.textContent = "Отчёт скопирован. Вставь его в тикет/чат.";
+          if (statusEl) statusEl.textContent = getLocaleBundle().bug.copyOk;
           playSfx("ui");
         } catch (e) {
           console.error("Failed to copy bug report", e);
-          if (statusEl) statusEl.textContent = "Не удалось скопировать автоматически. Скопируй вручную.";
+          if (statusEl) statusEl.textContent = getLocaleBundle().bug.copyFail;
         }
       });
     }
@@ -1074,11 +1129,11 @@ function setupBugReportForm() {
         try {
           const issueUrl = `${BUG_REPORT_GITHUB_NEW_ISSUE_URL}?title=${encodeURIComponent(report.title)}&body=${encodeURIComponent(report.text)}`;
           window.open(issueUrl, "_blank", "noopener,noreferrer");
-          if (statusEl) statusEl.textContent = "Открыта страница создания issue.";
+          if (statusEl) statusEl.textContent = getLocaleBundle().bug.issueOk;
           playSfx("ui");
         } catch (e) {
           console.error("Failed to open github issue page", e);
-          if (statusEl) statusEl.textContent = "Не удалось открыть GitHub Issue.";
+          if (statusEl) statusEl.textContent = getLocaleBundle().bug.issueFail;
         }
       });
     }
@@ -1094,11 +1149,11 @@ function setupBugReportForm() {
         try {
           const mailto = `mailto:?subject=${encodeURIComponent(`[Metro Relic] ${report.title}`)}&body=${encodeURIComponent(report.text)}`;
           window.location.href = mailto;
-          if (statusEl) statusEl.textContent = "Открыт почтовый клиент.";
+          if (statusEl) statusEl.textContent = getLocaleBundle().bug.mailOk;
           playSfx("ui");
         } catch (e) {
           console.error("Failed to open mailto", e);
-          if (statusEl) statusEl.textContent = "Не удалось открыть почтовый клиент.";
+          if (statusEl) statusEl.textContent = getLocaleBundle().bug.mailFail;
         }
       });
     }
@@ -1146,15 +1201,16 @@ function attackEnemy(enemy) {
   const preset = getDifficultyPreset();
   enemy.hp -= state.playerDamage;
   playSfx("attack");
-  setLog(`Ты ударил врага на ${state.playerDamage}.`);
+  setLog(tf("logs.hit", { dmg: state.playerDamage }));
   if (enemy.hp <= 0) {
     const baseScrap = enemy.boss ? 5 : 2;
     const gainedScrap = Math.max(1, Math.round(baseScrap * preset.scrapMultiplier));
     state.scrap += gainedScrap;
+    const gain = formatTrophies(gainedScrap);
     setLog(
       enemy.boss
-        ? `Босс уничтожен! +${formatTrophies(gainedScrap)}.`
-        : `Враг уничтожен! +${formatTrophies(gainedScrap)}.`
+        ? tf("logs.bossKill", { gain })
+        : tf("logs.enemyKill", { gain })
     );
   }
 }
@@ -1188,7 +1244,7 @@ function enemyTurn() {
 }
 
 function floorCleared() {
-  return state.enemies.every((e) => e.hp <= 0);
+  return P.floorCleared(state.enemies);
 }
 
 function finishRunAsWin() {
@@ -1200,8 +1256,13 @@ function finishRunAsWin() {
     lastPlayedAt: new Date().toISOString()
   });
   playSfx("win");
-  setLog(`Победа! Ты выбрался из метро с ${formatTrophies(state.scrap)}.`, "success");
-  showFloorTransition("ПОБЕДА", `Добыча: ${formatTrophies(state.scrap)}`, "success", RESULT_ANNOUNCE_MS);
+  setLog(tf("logs.win", { scrap: formatTrophies(state.scrap) }), "success");
+  showFloorTransition(
+    tf("transitions.victoryTitle"),
+    tf("transitions.victoryLoot", { scrap: formatTrophies(state.scrap) }),
+    "success",
+    RESULT_ANNOUNCE_MS
+  );
   render();
   return true;
 }
@@ -1213,25 +1274,52 @@ function finishRunAsDefeat() {
     lastPlayedAt: new Date().toISOString()
   });
   playSfx("death");
-  setLog("Поражение! Ты погиб в туннелях. Нажми 'Новый забег'.", "danger");
-  showFloorTransition("ПОРАЖЕНИЕ", "Нажми «Новый забег»", "danger", RESULT_ANNOUNCE_MS);
+  setLog(tf("logs.defeat"), "danger");
+  showFloorTransition(
+    tf("transitions.defeatTitle"),
+    tf("transitions.defeatSubtitle"),
+    "danger",
+    RESULT_ANNOUNCE_MS
+  );
+}
+
+function startRelicChoiceThenAdvanceToNextFloor() {
+  if (state.transitioning || state.over || state.pickingRelic) return;
+  state.pickingRelic = true;
+  render();
+  chooseRelic(() => {
+    state.pickingRelic = false;
+    render();
+    advanceToNextFloor();
+  });
 }
 
 function advanceToNextFloor() {
   if (state.transitioning) return;
   state.transitioning = true;
   const nextFloor = state.floor + 1;
-  setLog(`Этаж ${state.floor} пройден. Переход на этаж ${nextFloor}...`, "info");
+  setLog(tf("logs.finishedFloor", { floor: state.floor, next: nextFloor }), "info");
   playSfx("transition");
 
-  showFloorTransition(`ЭТАЖ ${nextFloor}`, "Переход...", "floor", FLOOR_TRANSITION_MS).then(() => {
+  showFloorTransition(
+    tf("transitions.floorBanner", { n: nextFloor }),
+    tf("transitions.genericSubtitle"),
+    "floor",
+    FLOOR_TRANSITION_MS
+  ).then(() => {
     state.floor = nextFloor;
     patchMetrics({
       maxFloorReached: Math.max(loadMetrics().maxFloorReached, state.floor),
       lastPlayedAt: new Date().toISOString()
     });
     spawnFloor();
-    setLog(`${getStationByFloor(state.floor)}. Этаж ${state.floor}. Враги стали сильнее.`, "info");
+    setLog(
+      tf("logs.newFloor", {
+        station: getStationByFloor(state.floor),
+        floor: state.floor
+      }),
+      "info"
+    );
     state.transitioning = false;
     render();
   });
@@ -1244,9 +1332,7 @@ function maybeFinishFloor() {
     return finishRunAsWin();
   }
 
-  // Упрощенный и надежный сценарий: сразу переходим на следующий этаж.
-  // Выбор реликвии отключен, чтобы избежать зависаний при переходе на X.
-  advanceToNextFloor();
+  startRelicChoiceThenAdvanceToNextFloor();
   return true;
 }
 
@@ -1257,23 +1343,22 @@ function tryUseExit(x, y) {
   const dist = manhattan(state.player, { x, y });
   // Разрешаем использовать выход, если стоим на нем или рядом с ним.
   if (dist > 1) {
-    setLog("Подойди к выходу X вплотную.");
+    setLog(tf("logs.exitCloser"));
     return true;
   }
 
   state.player.x = x;
   state.player.y = y;
-  // Прямой надежный переход по X без промежуточных состояний.
   if (state.floor >= totalFloors) {
     return finishRunAsWin();
   }
 
-  advanceToNextFloor();
+  startRelicChoiceThenAdvanceToNextFloor();
   return true;
 }
 
 function onTileTap(x, y) {
-  if (state.over || state.transitioning) return;
+  if (state.over || state.transitioning || state.pickingRelic) return;
   if (tryUseExit(x, y)) return;
 
   const enemy = state.enemies.find((e) => e.x === x && e.y === y && e.hp > 0);
@@ -1290,7 +1375,7 @@ function onTileTap(x, y) {
 
   if (dist !== 1 || enemy) {
     playSfx("ui");
-    setLog("Можно ходить только на соседнюю свободную клетку.");
+    setLog(tf("logs.moveAdjacentOnly"));
     return;
   }
 
@@ -1304,23 +1389,39 @@ function onTileTap(x, y) {
 }
 
 function handleSwipeMove(deltaX, deltaY) {
-  if (state.over || state.transitioning) return;
+  if (state.over || state.transitioning || state.pickingRelic) return;
 
   const absX = Math.abs(deltaX);
   const absY = Math.abs(deltaY);
   if (absX < 24 && absY < 24) return;
 
-  let targetX = state.player.x;
-  let targetY = state.player.y;
-
+  let dx = 0;
+  let dy = 0;
   if (absX >= absY) {
-    targetX += deltaX > 0 ? 1 : -1;
+    dx = deltaX > 0 ? 1 : -1;
   } else {
-    targetY += deltaY > 0 ? 1 : -1;
+    dy = deltaY > 0 ? 1 : -1;
   }
 
+  if (state.dashArmNextMove && state.dashCharges > 0) {
+    if (tryDashMove(dx, dy)) {
+      state.dashArmNextMove = false;
+      playSfx("move");
+      afterPlayerActionSequence();
+    } else {
+      state.dashArmNextMove = false;
+      setLog(tf("logs.dashBadPath"));
+      playSfx("ui");
+    }
+    updateDashButton();
+    return;
+  }
+
+  const targetX = state.player.x + dx;
+  const targetY = state.player.y + dy;
+
   if (!inBounds(targetX, targetY)) {
-    setLog("Дальше туннельной стены идти нельзя.");
+    setLog(tf("logs.wall"));
     return;
   }
 
@@ -1358,27 +1459,51 @@ function setupSwipeControls() {
 
 function setupKeyboardControls() {
   window.addEventListener("keydown", (event) => {
-    if (state.over || state.transitioning) return;
+    if (state.over || state.transitioning || state.pickingRelic) return;
     const activeTag = document.activeElement ? document.activeElement.tagName : "";
     const inInput = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
     if (inInput) return;
 
     const key = String(event.key || "").toLowerCase();
-    let targetX = state.player.x;
-    let targetY = state.player.y;
-    let handled = true;
+    let dx = 0;
+    let dy = 0;
+    let dirHandled = true;
 
-    if (key === "arrowleft" || key === "a" || key === "ф") targetX -= 1;
-    else if (key === "arrowright" || key === "d" || key === "в") targetX += 1;
-    else if (key === "arrowup" || key === "w" || key === "ц") targetY -= 1;
-    else if (key === "arrowdown" || key === "s" || key === "ы") targetY += 1;
-    else handled = false;
+    if (key === "arrowleft" || key === "a" || key === "ф") dx = -1;
+    else if (key === "arrowright" || key === "d" || key === "в") dx = 1;
+    else if (key === "arrowup" || key === "w" || key === "ц") dy = -1;
+    else if (key === "arrowdown" || key === "s" || key === "ы") dy = 1;
+    else dirHandled = false;
 
-    if (!handled) return;
+    if (!dirHandled) return;
+
+    if (event.shiftKey) {
+      event.preventDefault();
+      state.dashArmNextMove = false;
+      if (state.dashCharges <= 0) {
+        setLog(tf("logs.noDash"));
+        playSfx("ui");
+        updateDashButton();
+        return;
+      }
+      if (tryDashMove(dx, dy)) {
+        playSfx("move");
+        afterPlayerActionSequence();
+      } else {
+        setLog(tf("logs.dashBadPath"));
+        playSfx("ui");
+      }
+      updateDashButton();
+      return;
+    }
+
     event.preventDefault();
 
+    const targetX = state.player.x + dx;
+    const targetY = state.player.y + dy;
+
     if (!inBounds(targetX, targetY)) {
-      setLog("Дальше туннельной стены идти нельзя.");
+      setLog(tf("logs.wall"));
       return;
     }
     onTileTap(targetX, targetY);
@@ -1395,6 +1520,8 @@ function resetGame() {
   state.dashCharges = 0;
   state.over = false;
   state.transitioning = false;
+  state.pickingRelic = false;
+  state.dashArmNextMove = false;
   spawnFloor();
   const metrics = loadMetrics();
   patchMetrics({
@@ -1402,16 +1529,29 @@ function resetGame() {
     maxFloorReached: Math.max(metrics.maxFloorReached, 1),
     lastPlayedAt: new Date().toISOString()
   });
-  setLog(`${getStationByFloor(state.floor)}. Новый забег: ${formatLives(state.hp)}. Уничтожь врагов и зайди на выход X.`);
+  setLog(
+    tf("logs.startRun", {
+      station: getStationByFloor(state.floor),
+      lives: formatLives(state.hp)
+    })
+  );
   render();
 }
 
 function pickTwoRelics() {
-  const bag = [...relicPool].sort(() => Math.random() - 0.5);
+  const bag = [...relicPool];
+  for (let i = bag.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [bag[i], bag[j]] = [bag[j], bag[i]];
+  }
   return bag.slice(0, 2);
 }
 
 function chooseRelic(onChosen) {
+  if (!relicModal || !relicOptions) {
+    onChosen();
+    return;
+  }
   relicOptions.innerHTML = "";
   relicModal.classList.remove("hidden");
   const options = pickTwoRelics();
@@ -1420,11 +1560,12 @@ function chooseRelic(onChosen) {
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className = "relic-btn";
-    btn.textContent = relic.name;
+    btn.textContent = getRelicDisplayName(relic);
     btn.addEventListener("click", () => {
       relic.apply(state);
       relicModal.classList.add("hidden");
-      setLog(`Получена реликвия: ${relic.name}`);
+      setLog(tf("logs.relicTaken", { name: getRelicDisplayName(relic) }));
+      playSfx("ui");
       onChosen();
     });
     relicOptions.appendChild(btn);
@@ -1432,11 +1573,31 @@ function chooseRelic(onChosen) {
 }
 
 endTurnBtn.addEventListener("click", () => {
-  if (state.over) return;
+  if (state.over || state.pickingRelic) return;
   enemyTurn();
   render();
   maybeFinishFloor();
 });
+
+if (dashBtn) {
+  dashBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    if (state.over || state.transitioning || state.pickingRelic) return;
+    playSfx("ui");
+    if (state.dashCharges <= 0) {
+      setLog(tf("logs.noDashBoots"));
+      updateDashButton();
+      return;
+    }
+    state.dashArmNextMove = !state.dashArmNextMove;
+    if (state.dashArmNextMove) {
+      setLog(tf("logs.dashArmOn"));
+    } else {
+      setLog(tf("logs.dashArmOff"));
+    }
+    updateDashButton();
+  });
+}
 
 restartBtn.addEventListener("click", resetGame);
 if (settingsBtn) {
@@ -1501,7 +1662,7 @@ function initGame() {
   applySettingsToUi(loadSettings());
   const restored = loadGame();
   if (restored) {
-    setLog("Продолжаем последний забег.");
+    setLog(tf("logs.continueRun"));
     render();
     return;
   }
@@ -1510,6 +1671,8 @@ function initGame() {
 }
 
 function boot() {
+  syncAudioDebugIndicator();
+  applyLocaleToDom();
   setupSwipeControls();
   setupKeyboardControls();
   setupGlobalAudioUnlock();

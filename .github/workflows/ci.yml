@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm test
+
+      - name: Syntax-check JavaScript
+        run: |
+          node --check web/game.js
+          node --check web/game-config.js
+          node --check web/locale-bundles.js
+          node --check web/pure-grid.js
+          node --check web/victory-sfx-presets.js
+          node --check scripts/sync-web-to-docs.mjs
+
+      - name: Basic HTML sanity checks
+        run: |
+          grep -q '</main>' web/index.html
+          test -f web/locale-bundles.js
+          grep -q 'locale-bundles' web/index.html

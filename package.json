@@ -1,20 +1,27 @@
 {
   "name": "metro-relic-ios-bootstrap",
   "version": "1.0.0",
+  "assetVersion": "20260401-1",
   "private": true,
   "description": "Offline turn-based roguelite prototype ready for iOS wrapping via Capacitor.",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "scripts": {
     "dev": "npx serve web -l 4173",
+    "test": "node --test ./test/pure-grid.test.mjs",
+    "verify:ci": "npm test && node --check web/game.js && node --check web/game-config.js && node --check web/locale-bundles.js && node --check web/pure-grid.js && node --check web/victory-sfx-presets.js && node --check scripts/sync-web-to-docs.mjs && grep -q '</main>' web/index.html && test -f web/locale-bundles.js && grep -q 'locale-bundles' web/index.html",
+    "sync:docs": "node scripts/sync-web-to-docs.mjs",
     "sync:ios": "npx cap sync ios",
     "open:ios": "npx cap open ios"
   },
   "dependencies": {
-    "@capacitor/core": "latest",
-    "@capacitor/ios": "^8.3.0"
+    "@capacitor/core": "8.3.0",
+    "@capacitor/ios": "8.3.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "latest",
-    "serve": "latest",
-    "typescript": "^6.0.2"
+    "@capacitor/cli": "8.3.0",
+    "serve": "14.2.6",
+    "typescript": "6.0.2"
   }
 }
