@@ -1,5 +1,6 @@
 :root {
   color-scheme: dark;
+  --ui-scale: 1;
   --bg: #0c111b;
   --panel: #131b2b;
   --tile: #1b263b;
@@ -18,6 +19,7 @@
 body {
   margin: 0;
   font-family: Inter, Segoe UI, Arial, sans-serif;
+  font-size: calc(16px * var(--ui-scale));
   background: radial-gradient(circle at top, #18243b 0%, var(--bg) 55%);
   color: var(--text);
 }
@@ -107,6 +109,14 @@ body {
 .controls {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
+}
+
+.info-controls {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
 }
 
 button {
@@ -126,6 +136,20 @@ button {
 #restartBtn {
   background: #384f7d;
   color: var(--text);
+}
+
+#settingsBtn {
+  background: #2d3d61;
+  color: var(--text);
+}
+
+#howToBtn,
+#faqBtn,
+#whatsNewBtn,
+#reportBugBtn {
+  background: #22304e;
+  color: var(--text);
+  font-weight: 600;
 }
 
 .modal {
@@ -157,4 +181,53 @@ button {
 .relic-btn {
   background: #233353;
   color: var(--text);
+}
+
+.info-modal-content {
+  max-height: min(80vh, 620px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.info-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.info-modal-header h2 {
+  margin: 0;
+}
+
+.info-modal-body {
+  margin-top: 12px;
+  overflow-y: auto;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.info-modal-body h3 {
+  color: var(--text);
+  margin: 14px 0 6px;
+}
+
+.info-modal-body ul {
+  margin: 0;
+  padding-left: 18px;
+}
+
+.info-modal-body p {
+  margin: 0 0 8px;
+}
+
+.close-btn {
+  flex: 0;
+  padding: 4px 10px;
+  border-radius: 8px;
+  background: #2a3b61;
+  color: var(--text);
+  font-size: 22px;
+  line-height: 1;
 }
