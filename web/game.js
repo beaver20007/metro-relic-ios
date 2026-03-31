@@ -29,8 +29,7 @@ const DEFAULT_SETTINGS = {
   uiScale: 1,
   difficulty: "normal",
   soundEnabled: true,
-  volume: 70,
-  exitMode: "immediate"
+  volume: 70
 };
 const DEFAULT_METRICS = {
   runs: 0,
@@ -596,18 +595,13 @@ function normalizeSettings(settings) {
   const difficulty = ["easy", "normal", "hard"].includes(safe.difficulty)
     ? safe.difficulty
     : DEFAULT_SETTINGS.difficulty;
-  const exitMode = ["immediate", "cleared_only"].includes(safe.exitMode)
-    ? safe.exitMode
-    : DEFAULT_SETTINGS.exitMode;
-
   return {
     uiScale: normalizedScale,
     difficulty,
     soundEnabled: safe.soundEnabled !== false,
     volume: Number.isFinite(Number(safe.volume))
       ? Math.min(100, Math.max(0, Number(safe.volume)))
-      : DEFAULT_SETTINGS.volume,
-    exitMode
+      : DEFAULT_SETTINGS.volume
   };
 }
 
@@ -675,16 +669,6 @@ function openSettings() {
     </p>
     <h3>Прогресс</h3>
     <p>Можно начать новый забег и очистить текущее автосохранение.</p>
-    <h3>Режим выхода</h3>
-    <p>
-      <label>
-        Завершение этажа:
-        <select id="exitModeSelect">
-          <option value="immediate">Сразу при входе на X</option>
-          <option value="cleared_only">Только после зачистки врагов</option>
-        </select>
-      </label>
-    </p>
     <button id="settingsApplyBtn" type="button">Применить сложность и начать новый забег</button>
     <button id="settingsResetRunBtn" type="button">Сбросить прогресс и начать новый забег</button>
   `;
@@ -697,7 +681,6 @@ function openSettings() {
   const uiScaleSelect = document.getElementById("uiScaleSelect");
   const difficultySelect = document.getElementById("difficultySelect");
   const soundToggle = document.getElementById("soundToggle");
-  const exitModeSelect = document.getElementById("exitModeSelect");
   const volumeRange = document.getElementById("volumeRange");
   const volumeValue = document.getElementById("volumeValue");
   if (uiScaleSelect) {
@@ -708,9 +691,6 @@ function openSettings() {
   }
   if (soundToggle) {
     soundToggle.checked = settings.soundEnabled;
-  }
-  if (exitModeSelect) {
-    exitModeSelect.value = settings.exitMode;
   }
   if (volumeRange) {
     volumeRange.value = String(settings.volume);
@@ -740,14 +720,6 @@ function openSettings() {
     settings = {
       ...settings,
       soundEnabled: soundToggle.checked
-    };
-    saveSettings(settings);
-  });
-
-  exitModeSelect?.addEventListener("change", () => {
-    settings = {
-      ...settings,
-      exitMode: exitModeSelect.value
     };
     saveSettings(settings);
   });
@@ -905,12 +877,6 @@ function floorCleared() {
 
 function maybeFinishFloor() {
   if (!samePos(state.player, state.exit)) return false;
-
-  const exitMode = loadSettings().exitMode || "immediate";
-  if (exitMode === "cleared_only" && !floorCleared()) {
-    setLog("Сначала зачисти врагов, затем выходи через X.");
-    return false;
-  }
 
   if (state.floor >= totalFloors) {
     state.over = true;
