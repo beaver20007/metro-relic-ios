@@ -188,7 +188,7 @@ const AUDIO_FILES = {
 };
 const EVENT_SFX_BOOST = {
   transition: { boost: 1.35, min: 0.55 },
-  win: { boost: 1.45, min: 0.62 },
+  win: { boost: 1.7, min: 0.78 },
   death: { boost: 1.5, min: 0.65 }
 };
 
@@ -473,9 +473,11 @@ function playSfx(kind) {
       playTone(92, 0.32, "sawtooth", 0.12);
       break;
     case "win":
-      playTone(520, 0.1, "triangle", 0.09);
-      playTone(660, 0.14, "sine", 0.1);
-      playTone(880, 0.24, "sine", 0.11);
+      // Яркий "тромбонный" фанфарный акцент: ниже частоты, длиннее хвост, громче.
+      playTone(146, 0.42, "sawtooth", 0.18);
+      playTone(196, 0.38, "sawtooth", 0.16);
+      playTone(246, 0.5, "triangle", 0.14);
+      playTone(293, 0.62, "square", 0.12);
       break;
     case "transition":
       playTone(260, 0.08, "triangle", 0.09);
