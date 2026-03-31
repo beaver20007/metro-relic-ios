@@ -20,13 +20,15 @@
 ## Быстрый старт (разработка)
 
 1. Установить Node.js **22+** (нужно для Capacitor CLI 8.x).
-2. В корне репозитория:
+2. В **корне** репозитория (рядом с `package.json`), не внутри `web/`:
 
 ```bash
 npm install
 npm run sync:ios
 npm run open:ios
 ```
+
+Если при `npm run sync:ios` появляется **`npm error could not determine executable to run`** — в этом каталоге нет `node_modules` (не запускали `npm install`, открыли не ту папку или удалили зависимости). Выполни **`npm install`** и повтори.
 
 Если каталог `ios/` ещё не создан (редко для этого репозитория), сначала: `npx cap add ios`, затем снова `npm run sync:ios`.
 

@@ -38,10 +38,13 @@ npm test
 ## Сборка и запуск на iOS
 
 ```bash
-npm install
-npx cap sync ios
-npx cap open ios
+cd /path/to/metro-relic-ios   # корень репозитория, где лежит package.json
+npm install                     # обязательно: без node_modules команда cap не соберётся
+npm run sync:ios
+npm run open:ios
 ```
+
+Если `npm run sync:ios` пишет **`could not determine executable to run`**, почти всегда не установлены зависимости: выполни **`npm install`** в этом каталоге (не в подпапке вроде `web/`).
 
 В Xcode: выбери свою команду (Team), при необходимости смени Bundle Identifier, подключи iPhone и нажми Run. **На iPhone нативное приложение закреплено за портретной ориентацией** (`Info.plist`); гибридная вёрстка для ландшафта остаётся актуальной в **браузере** и на **iPad**.
 

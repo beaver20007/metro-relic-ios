@@ -12,8 +12,8 @@
     "test": "node --test ./test/pure-grid.test.mjs",
     "verify:ci": "npm test && node --check web/game.js && node --check web/game-config.js && node --check web/locale-bundles.js && node --check web/pure-grid.js && node --check web/victory-sfx-presets.js && node --check scripts/sync-web-to-docs.mjs && grep -q '</main>' web/index.html && test -f web/locale-bundles.js && grep -q 'locale-bundles' web/index.html",
     "sync:docs": "node scripts/sync-web-to-docs.mjs",
-    "sync:ios": "npx cap sync ios",
-    "open:ios": "npx cap open ios"
+    "sync:ios": "npx @capacitor/cli sync ios",
+    "open:ios": "npx @capacitor/cli open ios"
   },
   "dependencies": {
     "@capacitor/core": "8.3.0",
