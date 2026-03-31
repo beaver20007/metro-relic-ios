@@ -455,10 +455,22 @@ label {
   font-size: 1rem;
 }
 
+/* Final layout: bottom menu strictly 2x4 */
+.menu-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+#settingsBtn,
+#reportBugBtn {
+  grid-column: auto !important;
+  width: 100% !important;
+}
+
 /* FINAL OVERRIDE: мобильный веб, одинаковые кнопки без наложений */
 @media (max-width: 900px) {
-  .controls,
-  .info-controls {
+  .menu-grid {
     grid-template-columns: 1fr 1fr !important;
   }
 
