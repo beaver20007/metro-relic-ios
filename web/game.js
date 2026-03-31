@@ -191,6 +191,30 @@ const EVENT_SFX_BOOST = {
   win: { boost: 1.7, min: 0.78 },
   death: { boost: 1.5, min: 0.65 }
 };
+const DEFAULT_VICTORY_SFX_VARIANTS = {
+  pobeda1: [
+    { delay: 0, notes: [[146, 0.55, "sawtooth", 0.16], [196, 0.52, "triangle", 0.13]] },
+    { delay: 520, notes: [[174, 0.58, "sawtooth", 0.17], [220, 0.54, "triangle", 0.13]] },
+    { delay: 1060, notes: [[196, 0.62, "sawtooth", 0.18], [246, 0.58, "triangle", 0.14]] },
+    { delay: 1660, notes: [[220, 0.66, "sawtooth", 0.18], [277, 0.62, "square", 0.14]] },
+    { delay: 2320, notes: [[246, 0.72, "triangle", 0.16], [311, 0.7, "square", 0.14]] },
+    { delay: 3020, notes: [[293, 0.86, "square", 0.14], [370, 0.82, "triangle", 0.12]] }
+  ]
+};
+const DEFAULT_VICTORY_SFX_ALIASES = {
+  pobeda1: "pobeda1",
+  "победа1": "pobeda1",
+  "победа-1": "pobeda1",
+  "победа_1": "pobeda1",
+  "победа один": "pobeda1"
+};
+const externalVictoryConfig = typeof window !== "undefined" ? window.VICTORY_SFX_CONFIG || {} : {};
+const VICTORY_SFX_VARIANTS = externalVictoryConfig.variants || DEFAULT_VICTORY_SFX_VARIANTS;
+const VICTORY_SFX_ALIASES = {
+  ...DEFAULT_VICTORY_SFX_ALIASES,
+  ...(externalVictoryConfig.aliases || {})
+};
+const ACTIVE_VICTORY_SFX = externalVictoryConfig.active || "победа один";
 
 function rand(max) {
   return Math.floor(Math.random() * max);
@@ -416,17 +440,13 @@ function playTone(frequency, duration, type = "sine", volume = 0.03) {
   }
 }
 
-function playVictoryFanfare() {
+function playVictoryFanfare(variant = ACTIVE_VICTORY_SFX) {
   try {
-    // Протяженная победная фанфара ~3.6с: несколько аккордовых волн.
-    const steps = [
-      { delay: 0, notes: [[146, 0.55, "sawtooth", 0.16], [196, 0.52, "triangle", 0.13]] },
-      { delay: 520, notes: [[174, 0.58, "sawtooth", 0.17], [220, 0.54, "triangle", 0.13]] },
-      { delay: 1060, notes: [[196, 0.62, "sawtooth", 0.18], [246, 0.58, "triangle", 0.14]] },
-      { delay: 1660, notes: [[220, 0.66, "sawtooth", 0.18], [277, 0.62, "square", 0.14]] },
-      { delay: 2320, notes: [[246, 0.72, "triangle", 0.16], [311, 0.7, "square", 0.14]] },
-      { delay: 3020, notes: [[293, 0.86, "square", 0.14], [370, 0.82, "triangle", 0.12]] }
-    ];
+    const normalizedKey = String(variant || "")
+      .trim()
+      .toLowerCase();
+    const resolvedVariant = VICTORY_SFX_ALIASES[normalizedKey] || "pobeda1";
+    const steps = VICTORY_SFX_VARIANTS[resolvedVariant] || VICTORY_SFX_VARIANTS.pobeda1;
 
     steps.forEach((step) => {
       setTimeout(() => {
