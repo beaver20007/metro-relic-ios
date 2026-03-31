@@ -475,6 +475,11 @@ label {
   letter-spacing: 0.005em;
 }
 
+.menu-grid button > span,
+.menu-grid button {
+  transform: translateY(-0.5px);
+}
+
 #settingsBtn,
 #reportBugBtn {
   grid-column: auto !important;
@@ -507,6 +512,7 @@ label {
     line-height: 1.1 !important;
     font-size: 0.82rem !important;
     border-radius: 11px !important;
+    transform: translateY(-0.4px) !important;
   }
 
   .grid {
