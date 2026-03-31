@@ -22,6 +22,40 @@ const state = {
 
 const SAVE_KEY = "metroRelicSaveV1";
 const SETTINGS_KEY = "metroRelicSettingsV1";
+const DEFAULT_SETTINGS = {
+  uiScale: 1,
+  difficulty: "normal",
+  soundEnabled: true
+};
+const difficultyPresets = {
+  easy: {
+    label: "Легко",
+    playerHp: 12,
+    playerDamage: 3,
+    enemyHpBonus: -1,
+    enemyDamageBonus: 0,
+    enemyCountBonus: -1,
+    scrapMultiplier: 1.2
+  },
+  normal: {
+    label: "Нормально",
+    playerHp: 10,
+    playerDamage: 2,
+    enemyHpBonus: 0,
+    enemyDamageBonus: 0,
+    enemyCountBonus: 0,
+    scrapMultiplier: 1
+  },
+  hard: {
+    label: "Сложно",
+    playerHp: 8,
+    playerDamage: 2,
+    enemyHpBonus: 1,
+    enemyDamageBonus: 1,
+    enemyCountBonus: 1,
+    scrapMultiplier: 0.9
+  }
+};
 
 const grid = document.getElementById("grid");
 const hpEl = document.getElementById("hp");
@@ -137,11 +171,12 @@ function isOccupied(x, y) {
 }
 
 function spawnFloor() {
+  const preset = getDifficultyPreset();
   state.enemies = [];
   state.player = { x: 0, y: 0 };
   state.exit = { x: size - 1, y: size - 1 };
 
-  const enemyCount = state.floor + 2;
+  const enemyCount = Math.max(1, state.floor + 2 + preset.enemyCountBonus);
   for (let i = 0; i < enemyCount; i += 1) {
     let x = 0;
     let y = 0;
@@ -151,11 +186,13 @@ function spawnFloor() {
     } while ((x === 0 && y === 0) || (x === size - 1 && y === size - 1) || isOccupied(x, y));
 
     const isBoss = state.floor === totalFloors && i === enemyCount - 1;
+    const baseHp = isBoss ? 8 : 4;
+    const baseDamage = isBoss ? 3 : 1;
     state.enemies.push({
       x,
       y,
-      hp: isBoss ? 8 : 4,
-      damage: isBoss ? 3 : 1,
+      hp: Math.max(1, baseHp + preset.enemyHpBonus),
+      damage: Math.max(1, baseDamage + preset.enemyDamageBonus),
       boss: isBoss
     });
   }
@@ -180,9 +217,10 @@ function tileSymbol(x, y) {
 }
 
 function updateStats() {
+  const preset = getDifficultyPreset();
   hpEl.textContent = `HP: ${state.hp}`;
   scrapEl.textContent = `Scrap: ${state.scrap}`;
-  floorEl.textContent = `Этаж: ${state.floor}/${totalFloors}`;
+  floorEl.textContent = `Этаж: ${state.floor}/${totalFloors} • ${preset.label}`;
 }
 
 function saveGame() {
@@ -257,21 +295,36 @@ function loadSettings() {
     const raw = window.localStorage.getItem(SETTINGS_KEY);
     if (!raw) return {};
     const data = JSON.parse(raw);
-    if (!data || typeof data !== "object") return {};
-    return data;
+    if (!data || typeof data !== "object") return { ...DEFAULT_SETTINGS };
+    return normalizeSettings(data);
   } catch (e) {
     console.error("Failed to load settings", e);
-    return {};
+    return { ...DEFAULT_SETTINGS };
   }
 }
 
 function saveSettings(settings) {
   try {
     if (typeof window === "undefined" || !window.localStorage) return;
-    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+    window.localStorage.setItem(SETTINGS_KEY, JSON.stringify(normalizeSettings(settings)));
   } catch (e) {
     console.error("Failed to save settings", e);
   }
+}
+
+function normalizeSettings(settings) {
+  const safe = settings && typeof settings === "object" ? settings : {};
+  const uiScale = Number(safe.uiScale);
+  const normalizedScale = [0.9, 1, 1.1, 1.25].includes(uiScale) ? uiScale : DEFAULT_SETTINGS.uiScale;
+  const difficulty = ["easy", "normal", "hard"].includes(safe.difficulty)
+    ? safe.difficulty
+    : DEFAULT_SETTINGS.difficulty;
+
+  return {
+    uiScale: normalizedScale,
+    difficulty,
+    soundEnabled: safe.soundEnabled !== false
+  };
 }
 
 function applySettingsToUi(settings) {
@@ -279,17 +332,33 @@ function applySettingsToUi(settings) {
     const root = document.documentElement;
     if (!root || !settings) return;
 
-    const scale = settings.uiScale || 1;
+    const scale = normalizeSettings(settings).uiScale;
     root.style.setProperty("--ui-scale", String(scale));
   } catch (e) {
     console.error("Failed to apply settings", e);
   }
 }
 
-function openSettings() {
+function getDifficultyPreset() {
   const settings = loadSettings();
+  return difficultyPresets[settings.difficulty] || difficultyPresets.normal;
+}
+
+function openSettings() {
+  let settings = loadSettings();
   const modalBody = `
     <p>Настройки применяются только на этом устройстве.</p>
+    <h3>Сложность</h3>
+    <p>
+      <label>
+        Пресет:
+        <select id="difficultySelect">
+          <option value="easy">Легко</option>
+          <option value="normal">Нормально</option>
+          <option value="hard">Сложно</option>
+        </select>
+      </label>
+    </p>
     <h3>Размер интерфейса</h3>
     <p>
       <label>
@@ -302,8 +371,16 @@ function openSettings() {
         </select>
       </label>
     </p>
+    <h3>Звук</h3>
+    <p>
+      <label>
+        <input id="soundToggle" type="checkbox" />
+        Включен
+      </label>
+    </p>
     <h3>Прогресс</h3>
     <p>Можно начать новый забег и очистить текущее автосохранение.</p>
+    <button id="settingsApplyBtn" type="button">Применить сложность и начать новый забег</button>
     <button id="settingsResetRunBtn" type="button">Сбросить прогресс и начать новый забег</button>
   `;
 
@@ -313,18 +390,53 @@ function openSettings() {
   infoModalBody.innerHTML = modalBody;
 
   const uiScaleSelect = document.getElementById("uiScaleSelect");
-  if (uiScaleSelect && settings.uiScale) {
+  const difficultySelect = document.getElementById("difficultySelect");
+  const soundToggle = document.getElementById("soundToggle");
+  if (uiScaleSelect) {
     uiScaleSelect.value = String(settings.uiScale);
+  }
+  if (difficultySelect) {
+    difficultySelect.value = settings.difficulty;
+  }
+  if (soundToggle) {
+    soundToggle.checked = settings.soundEnabled;
   }
 
   uiScaleSelect?.addEventListener("change", () => {
-    const next = {
+    settings = {
       ...settings,
       uiScale: Number(uiScaleSelect.value)
     };
-    saveSettings(next);
-    applySettingsToUi(next);
+    saveSettings(settings);
+    applySettingsToUi(settings);
   });
+
+  difficultySelect?.addEventListener("change", () => {
+    settings = {
+      ...settings,
+      difficulty: difficultySelect.value
+    };
+    saveSettings(settings);
+  });
+
+  soundToggle?.addEventListener("change", () => {
+    settings = {
+      ...settings,
+      soundEnabled: soundToggle.checked
+    };
+    saveSettings(settings);
+  });
+
+  const applyBtn = document.getElementById("settingsApplyBtn");
+  if (applyBtn) {
+    applyBtn.addEventListener("click", () => {
+      closeInfoModal();
+      resetGame();
+      const preset = getDifficultyPreset();
+      setLog(`Сложность: ${preset.label}. Новый забег начат.`);
+      render();
+    });
+  }
 
   const resetRunBtn = document.getElementById("settingsResetRunBtn");
   if (resetRunBtn) {
@@ -376,11 +488,14 @@ function render() {
 }
 
 function attackEnemy(enemy) {
+  const preset = getDifficultyPreset();
   enemy.hp -= state.playerDamage;
   setLog(`Ты ударил врага на ${state.playerDamage}.`);
   if (enemy.hp <= 0) {
-    state.scrap += enemy.boss ? 5 : 2;
-    setLog(enemy.boss ? "Босс уничтожен! +5 scrap." : "Враг уничтожен! +2 scrap.");
+    const baseScrap = enemy.boss ? 5 : 2;
+    const gainedScrap = Math.max(1, Math.round(baseScrap * preset.scrapMultiplier));
+    state.scrap += gainedScrap;
+    setLog(enemy.boss ? `Босс уничтожен! +${gainedScrap} scrap.` : `Враг уничтожен! +${gainedScrap} scrap.`);
   }
 }
 
@@ -461,11 +576,12 @@ function onTileTap(x, y) {
 }
 
 function resetGame() {
+  const preset = getDifficultyPreset();
   clearSavedGame();
   state.floor = 1;
-  state.hp = 10;
+  state.hp = preset.playerHp;
   state.scrap = 0;
-  state.playerDamage = 2;
+  state.playerDamage = preset.playerDamage;
   state.dashCharges = 0;
   state.over = false;
   spawnFloor();
