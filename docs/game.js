@@ -199,6 +199,15 @@ function formatTrophies(count) {
   return `${count} трофеев`;
 }
 
+function formatLives(count) {
+  const n = Math.abs(count) % 100;
+  const n1 = n % 10;
+  if (n > 10 && n < 20) return `${count} жизней`;
+  if (n1 > 1 && n1 < 5) return `${count} жизни`;
+  if (n1 === 1) return `${count} жизнь`;
+  return `${count} жизней`;
+}
+
 function updateAudioStatus(label) {
   if (!audioStatusEl) return;
   audioStatusEl.textContent = `Audio: ${label}`;
@@ -987,7 +996,7 @@ function resetGame() {
     maxFloorReached: Math.max(metrics.maxFloorReached, 1),
     lastPlayedAt: new Date().toISOString()
   });
-  setLog(`${getStationByFloor(state.floor)}. Новый забег. Уничтожь врагов и зайди на выход X.`);
+  setLog(`${getStationByFloor(state.floor)}. Новый забег: ${formatLives(state.hp)}. Уничтожь врагов и зайди на выход X.`);
   render();
 }
 
