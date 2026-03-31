@@ -679,7 +679,10 @@ function boot() {
 
     if (splashHowToBtn) {
       splashHowToBtn.addEventListener("click", () => {
-        // Показываем экран "Как играть", не начиная забег
+        // Переходим в игру и сразу открываем экран "Как играть"
+        splashScreen.classList.add("hidden");
+        appRoot.classList.remove("hidden");
+        initGame();
         openInfoModal("howTo");
       });
     }
