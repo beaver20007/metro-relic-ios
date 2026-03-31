@@ -521,3 +521,10 @@ label {
     font-size: 0.8rem;
   }
 }
+
+/* Мобильный браузер (не PWA): добавляем место под нижнюю панель браузера */
+@media (max-width: 520px) and (display-mode: browser) {
+  .app {
+    padding-bottom: calc(72px + env(safe-area-inset-bottom));
+  }
+}
