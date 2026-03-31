@@ -170,7 +170,9 @@ const infoScreens = {
 };
 
 let audioCtx = null;
+const AUDIO_VERSION = "20260331-1";
 const audioBuffers = {};
+const audioElements = {};
 const AUDIO_FILES = {
   ui: "./assets/sfx/ui.mp3",
   move: "./assets/sfx/move.mp3",
@@ -296,6 +298,19 @@ async function preloadAudioBuffers() {
   }
 }
 
+function setupAudioElements() {
+  try {
+    for (const [key, path] of Object.entries(AUDIO_FILES)) {
+      const audio = new Audio(`${path}?v=${AUDIO_VERSION}`);
+      audio.preload = "auto";
+      audio.load();
+      audioElements[key] = audio;
+    }
+  } catch (e) {
+    console.error("Failed to setup audio elements", e);
+  }
+}
+
 function playTone(frequency, duration, type = "sine", volume = 0.03) {
   try {
     if (!loadSettings().soundEnabled) return;
@@ -320,6 +335,20 @@ function playTone(frequency, duration, type = "sine", volume = 0.03) {
 }
 
 function playSfx(kind) {
+  try {
+    if (!loadSettings().soundEnabled) return;
+    const el = audioElements[kind];
+    if (el) {
+      const instance = el.cloneNode(true);
+      instance.volume = Math.max(0, Math.min(1, normalizeSettings(loadSettings()).volume / 100));
+      instance.play().catch(() => {});
+      updateAudioStatus("mp3");
+      return;
+    }
+  } catch (e) {
+    console.error("Failed to play html audio sfx", e);
+  }
+
   try {
     if (!loadSettings().soundEnabled) return;
     const ctx = getAudioContext();
@@ -548,7 +577,11 @@ function applySettingsToUi(settings) {
     const root = document.documentElement;
     if (!root || !settings) return;
 
-    const scale = normalizeSettings(settings).uiScale;
+    let scale = normalizeSettings(settings).uiScale;
+    // На мобильных браузерах высокий uiScale легко ломает ширину сетки
+    if (typeof window !== "undefined" && window.innerWidth <= 520) {
+      scale = Math.min(scale, 1);
+    }
     root.style.setProperty("--ui-scale", String(scale));
   } catch (e) {
     console.error("Failed to apply settings", e);
@@ -982,6 +1015,7 @@ function initGame() {
 
 function boot() {
   setupGlobalAudioUnlock();
+  setupAudioElements();
   preloadAudioBuffers();
   // Если есть сплеш-экран, сначала показываем его
   if (splashScreen && splashStartBtn && appRoot) {
