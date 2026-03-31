@@ -877,7 +877,7 @@ function floorCleared() {
 }
 
 function maybeFinishFloor() {
-  if (!floorCleared() || !samePos(state.player, state.exit)) return;
+  if (!samePos(state.player, state.exit)) return;
 
   if (state.floor >= totalFloors) {
     state.over = true;
