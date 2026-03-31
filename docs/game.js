@@ -19,8 +19,10 @@ const state = {
   player: { x: 0, y: 0 },
   exit: { x: 6, y: 6 },
   enemies: [],
-  over: false
+  over: false,
+  transitioning: false
 };
+const FLOOR_TRANSITION_MS = 420;
 
 const SAVE_KEY = "metroRelicSaveV1";
 const SETTINGS_KEY = "metroRelicSettingsV1";
@@ -97,6 +99,7 @@ const infoModalTitle = document.getElementById("infoModalTitle");
 const infoModalBody = document.getElementById("infoModalBody");
 const infoModalCloseBtn = document.getElementById("infoModalCloseBtn");
 const audioStatusEl = document.getElementById("audioStatus");
+let floorTransitionEl = null;
 
 const infoScreens = {
   howTo: {
@@ -186,8 +189,54 @@ function rand(max) {
   return Math.floor(Math.random() * max);
 }
 
-function setLog(msg) {
+function setLog(msg, tone = "default") {
   logEl.textContent = msg;
+  if (!logEl || !logEl.classList) return;
+  logEl.classList.remove("log--success", "log--danger", "log--info");
+  if (tone === "success") logEl.classList.add("log--success");
+  else if (tone === "danger") logEl.classList.add("log--danger");
+  else if (tone === "info") logEl.classList.add("log--info");
+}
+
+function ensureFloorTransitionEl() {
+  try {
+    if (floorTransitionEl) return floorTransitionEl;
+    const el = document.createElement("div");
+    el.className = "floor-transition";
+    el.setAttribute("aria-hidden", "true");
+    el.innerHTML = `
+      <div class="floor-transition__bg"></div>
+      <div class="floor-transition__label"></div>
+    `;
+    document.body.appendChild(el);
+    floorTransitionEl = el;
+    return floorTransitionEl;
+  } catch (e) {
+    console.error("Failed to create floor transition element", e);
+    return null;
+  }
+}
+
+function showFloorTransition(labelText) {
+  return new Promise((resolve) => {
+    try {
+      const el = ensureFloorTransitionEl();
+      if (!el) {
+        resolve();
+        return;
+      }
+      const label = el.querySelector(".floor-transition__label");
+      if (label) label.textContent = labelText || "Переход...";
+      el.classList.add("show");
+      setTimeout(() => {
+        el.classList.remove("show");
+        resolve();
+      }, FLOOR_TRANSITION_MS);
+    } catch (e) {
+      console.error("Failed to show floor transition", e);
+      resolve();
+    }
+  });
 }
 
 function formatTrophies(count) {
@@ -871,7 +920,7 @@ function enemyTurn() {
           lastPlayedAt: new Date().toISOString()
         });
         playSfx("death");
-        setLog("Ты погиб в туннелях. Нажми 'Новый забег'.");
+        setLog("Поражение! Ты погиб в туннелях. Нажми 'Новый забег'.", "danger");
         return;
       }
       continue;
@@ -897,14 +946,23 @@ function floorCleared() {
 }
 
 function advanceToNextFloor() {
-  state.floor += 1;
-  patchMetrics({
-    maxFloorReached: Math.max(loadMetrics().maxFloorReached, state.floor),
-    lastPlayedAt: new Date().toISOString()
+  if (state.transitioning) return;
+  state.transitioning = true;
+  const nextFloor = state.floor + 1;
+  setLog(`Этаж ${state.floor} пройден. Переход на этаж ${nextFloor}...`, "info");
+  playSfx("ui");
+
+  showFloorTransition(`Этаж ${nextFloor}`).then(() => {
+    state.floor = nextFloor;
+    patchMetrics({
+      maxFloorReached: Math.max(loadMetrics().maxFloorReached, state.floor),
+      lastPlayedAt: new Date().toISOString()
+    });
+    spawnFloor();
+    setLog(`${getStationByFloor(state.floor)}. Этаж ${state.floor}. Враги стали сильнее.`, "info");
+    state.transitioning = false;
+    render();
   });
-  spawnFloor();
-  setLog(`${getStationByFloor(state.floor)}. Этаж ${state.floor}. Враги стали сильнее.`);
-  render();
 }
 
 function maybeFinishFloor() {
@@ -919,7 +977,7 @@ function maybeFinishFloor() {
       lastPlayedAt: new Date().toISOString()
     });
     playSfx("win");
-    setLog(`Победа! Ты выбрался из метро с ${formatTrophies(state.scrap)}.`);
+    setLog(`Победа! Ты выбрался из метро с ${formatTrophies(state.scrap)}.`, "success");
     render();
     return true;
   }
@@ -943,13 +1001,27 @@ function tryUseExit(x, y) {
 
   state.player.x = x;
   state.player.y = y;
-  render();
-  maybeFinishFloor();
+  // Прямой надежный переход по X без промежуточных состояний.
+  if (state.floor >= totalFloors) {
+    state.over = true;
+    const metrics = loadMetrics();
+    patchMetrics({
+      wins: metrics.wins + 1,
+      maxFloorReached: Math.max(metrics.maxFloorReached, totalFloors),
+      lastPlayedAt: new Date().toISOString()
+    });
+    playSfx("win");
+    setLog(`Победа! Ты выбрался из метро с ${formatTrophies(state.scrap)}.`, "success");
+    render();
+    return true;
+  }
+
+  advanceToNextFloor();
   return true;
 }
 
 function onTileTap(x, y) {
-  if (state.over) return;
+  if (state.over || state.transitioning) return;
   if (tryUseExit(x, y)) return;
 
   const enemy = state.enemies.find((e) => e.x === x && e.y === y && e.hp > 0);
@@ -980,7 +1052,7 @@ function onTileTap(x, y) {
 }
 
 function handleSwipeMove(deltaX, deltaY) {
-  if (state.over) return;
+  if (state.over || state.transitioning) return;
 
   const absX = Math.abs(deltaX);
   const absY = Math.abs(deltaY);
@@ -1041,6 +1113,7 @@ function resetGame() {
   state.playerDamage = preset.playerDamage;
   state.dashCharges = 0;
   state.over = false;
+  state.transitioning = false;
   spawnFloor();
   const metrics = loadMetrics();
   patchMetrics({
