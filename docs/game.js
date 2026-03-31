@@ -473,6 +473,20 @@ function getPlayerTileColor() {
   }
 }
 
+function getPlayerRingColor() {
+  try {
+    const baseHp = Math.max(1, getDifficultyPreset().playerHp);
+    const ratio = Math.max(0, Math.min(1, state.hp / baseHp));
+    const red = Math.round(90 + (255 - 90) * (1 - ratio));
+    const green = Math.round(150 + (90 - 150) * (1 - ratio));
+    const blue = Math.round(255 + (90 - 255) * (1 - ratio));
+    return `rgb(${red}, ${green}, ${blue})`;
+  } catch (e) {
+    console.error("Failed to compute player ring color", e);
+    return "#5a96ff";
+  }
+}
+
 function updateStats() {
   const preset = getDifficultyPreset();
   hpEl.textContent = `HP: ${state.hp}`;
@@ -791,6 +805,9 @@ function render() {
       btn.type = "button";
       if (state.player.x === x && state.player.y === y) {
         btn.style.background = getPlayerTileColor();
+        btn.style.outline = `2px solid ${getPlayerRingColor()}`;
+        btn.style.outlineOffset = "-2px";
+        btn.style.boxShadow = `0 0 10px ${getPlayerRingColor()}55`;
       }
       btn.addEventListener("click", () => onTileTap(x, y));
       grid.appendChild(btn);
