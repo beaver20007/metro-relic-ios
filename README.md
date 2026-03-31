@@ -63,6 +63,8 @@ npx cap open ios
 
 При необходимости деплой можно запустить вручную: **Actions** → **Deploy Pages** → **Run workflow**.
 
+Если job **deploy** падает с ошибкой доступа: **Settings** → **Actions** → **General** → **Workflow permissions** → включи **Read and write permissions**. Проверь также, что **Settings** → **Pages** → источник — **GitHub Actions**, а не ветка.
+
 ### Локальная синхронизация `web/` → `docs/`
 
 То же делает скрипт вручную (удобно перед коммитом, если хочешь держать `docs/` в git зеркально с `web/`):
