@@ -1448,6 +1448,10 @@ function setupSwipeControls() {
     event.preventDefault();
   }, { passive: false });
 
+  grid.addEventListener("touchcancel", () => {
+    tracking = false;
+  }, { passive: true });
+
   grid.addEventListener("touchend", (event) => {
     if (!tracking) return;
     const t = event.changedTouches && event.changedTouches[0];
