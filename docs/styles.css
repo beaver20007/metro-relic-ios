@@ -24,6 +24,102 @@ body {
   color: var(--text);
 }
 
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: radial-gradient(circle at top, #151b2c 0%, #05070d 60%);
+}
+
+.splash-inner {
+  width: min(420px, 100%);
+  text-align: center;
+  position: relative;
+}
+
+.splash-relic-glow {
+  width: 200px;
+  height: 200px;
+  margin: 0 auto 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(118, 211, 255, 0.9) 0%, rgba(51, 33, 88, 0.1) 60%, transparent 80%);
+  filter: blur(1px);
+  position: relative;
+  animation: relicPulse 2.4s ease-in-out infinite;
+}
+
+.splash-relic-core {
+  position: absolute;
+  inset: 25%;
+  border-radius: 24px;
+  border: 2px solid rgba(190, 232, 255, 0.9);
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.9), transparent 55%),
+    radial-gradient(circle at 80% 80%, rgba(120, 206, 255, 0.8), transparent 55%),
+    linear-gradient(135deg, rgba(47, 124, 215, 0.9), rgba(122, 85, 214, 0.9));
+  box-shadow:
+    0 0 24px rgba(136, 206, 255, 0.8),
+    0 0 64px rgba(111, 66, 193, 0.7);
+}
+
+.splash-title {
+  margin: 0 0 6px;
+  font-size: 28px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.splash-tagline {
+  margin: 0 0 18px;
+  color: var(--muted);
+}
+
+.splash-start-btn {
+  margin-top: 8px;
+  width: 100%;
+  background: linear-gradient(90deg, #3b82f6, #6366f1);
+  color: #ffffff;
+  font-size: 1rem;
+  padding: 12px;
+  border-radius: 999px;
+  box-shadow: 0 10px 25px rgba(59, 130, 246, 0.5);
+}
+
+.splash-secondary-btn {
+  margin-top: 8px;
+  width: 100%;
+  background: rgba(24, 34, 60, 0.9);
+  color: var(--muted);
+  font-size: 0.9rem;
+  padding: 10px;
+  border-radius: 999px;
+}
+
+.splash-meta {
+  margin: 10px 0 0;
+  font-size: 0.75rem;
+  color: rgba(159, 178, 217, 0.75);
+}
+
+@keyframes relicPulse {
+  0% {
+    transform: scale(0.98);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(0.98);
+    opacity: 0.85;
+  }
+}
+
 .app {
   max-width: 520px;
   margin: 0 auto;

@@ -57,6 +57,10 @@ const difficultyPresets = {
   }
 };
 
+const appRoot = document.querySelector(".app");
+const splashScreen = document.getElementById("splashScreen");
+const splashStartBtn = document.getElementById("splashStartBtn");
+const splashHowToBtn = document.getElementById("splashHowToBtn");
 const grid = document.getElementById("grid");
 const hpEl = document.getElementById("hp");
 const scrapEl = document.getElementById("scrap");
@@ -661,4 +665,27 @@ function initGame() {
   resetGame();
 }
 
-initGame();
+function boot() {
+  // Если есть сплеш-экран, сначала показываем его
+  if (splashScreen && splashStartBtn && appRoot) {
+    appRoot.classList.add("hidden");
+    splashScreen.classList.remove("hidden");
+
+    splashStartBtn.addEventListener("click", () => {
+      splashScreen.classList.add("hidden");
+      appRoot.classList.remove("hidden");
+      initGame();
+    });
+
+    if (splashHowToBtn) {
+      splashHowToBtn.addEventListener("click", () => {
+        // Показываем экран "Как играть", не начиная забег
+        openInfoModal("howTo");
+      });
+    }
+  } else {
+    initGame();
+  }
+}
+
+boot();
