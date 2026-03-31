@@ -183,7 +183,7 @@ const AUDIO_FILES = {
   attack: "./assets/sfx/attack.mp3",
   hit: "./assets/sfx/hit.mp3",
   death: "./assets/sfx/death.mp3",
-  win: "./assets/sfx/win.mp3",
+  win: "./assets/sfx/the-sound-of-victory-winning.mp3",
   transition: "./assets/sfx/transition.mp3"
 };
 const EVENT_SFX_BOOST = {
@@ -472,7 +472,9 @@ function playSfx(kind) {
       instance.volume = Math.max(0, Math.min(1, boostedVolume));
       instance.play().catch(() => {});
       updateAudioStatus("mp3");
-      if (!eventConfig) return;
+      // Для победы используем только внешний трек (если он доступен),
+      // без наложения синтетической фанфары.
+      if (kind === "win" || !eventConfig) return;
     }
   } catch (e) {
     console.error("Failed to play html audio sfx", e);
