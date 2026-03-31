@@ -9,10 +9,12 @@
     "open:ios": "npx cap open ios"
   },
   "dependencies": {
-    "@capacitor/core": "latest"
+    "@capacitor/core": "latest",
+    "@capacitor/ios": "^8.3.0"
   },
   "devDependencies": {
     "@capacitor/cli": "latest",
-    "serve": "latest"
+    "serve": "latest",
+    "typescript": "^6.0.2"
   }
 }
