@@ -462,6 +462,17 @@ label {
   gap: 8px;
 }
 
+.menu-grid button {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  line-height: 1.12;
+  padding: 0 10px !important;
+  min-height: 46px !important;
+  height: 46px !important;
+}
+
 #settingsBtn,
 #reportBugBtn {
   grid-column: auto !important;
@@ -484,6 +495,14 @@ label {
   button {
     min-height: 40px !important;
     font-size: 0.84rem !important;
+  }
+
+  .menu-grid button {
+    min-height: 42px !important;
+    height: 42px !important;
+    padding: 0 8px !important;
+    line-height: 1.1 !important;
+    font-size: 0.82rem !important;
   }
 
   .grid {
