@@ -903,17 +903,9 @@ function maybeFinishFloor() {
     return true;
   }
 
-  // Надежный сценарий: если модалка реликвий недоступна/сломана, просто идем дальше.
-  try {
-    if (relicModal && relicOptions && typeof chooseRelic === "function") {
-      chooseRelic(advanceToNextFloor);
-    } else {
-      advanceToNextFloor();
-    }
-  } catch (e) {
-    console.error("Failed to show relic modal, advancing floor directly", e);
-    advanceToNextFloor();
-  }
+  // Упрощенный и надежный сценарий: сразу переходим на следующий этаж.
+  // Выбор реликвии отключен, чтобы избежать зависаний при переходе на X.
+  advanceToNextFloor();
   return true;
 }
 
