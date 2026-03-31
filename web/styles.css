@@ -1,0 +1,160 @@
+:root {
+  color-scheme: dark;
+  --bg: #0c111b;
+  --panel: #131b2b;
+  --tile: #1b263b;
+  --tile-alt: #253451;
+  --text: #e2ebff;
+  --muted: #9fb2d9;
+  --good: #55d27e;
+  --warn: #ff9f43;
+  --bad: #ff5a6d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: Inter, Segoe UI, Arial, sans-serif;
+  background: radial-gradient(circle at top, #18243b 0%, var(--bg) 55%);
+  color: var(--text);
+}
+
+.app {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: 16px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.topbar h1 {
+  margin: 0 0 8px;
+  font-size: 24px;
+}
+
+.stats {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: var(--muted);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 8px;
+}
+
+.tile {
+  aspect-ratio: 1 / 1;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: var(--tile);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  cursor: pointer;
+  user-select: none;
+}
+
+.tile:nth-child(odd) {
+  background: var(--tile-alt);
+}
+
+.tile.adjacent {
+  outline: 2px solid #3d8dff;
+}
+
+.tile.exit {
+  outline: 2px dashed var(--warn);
+}
+
+.tile.player {
+  background: #2f66ff;
+}
+
+.tile.enemy {
+  background: #6d2243;
+}
+
+.tile.enemy-boss {
+  background: #8d1c1c;
+}
+
+.panel {
+  background: var(--panel);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 12px;
+}
+
+.log {
+  margin: 0 0 10px;
+  color: var(--muted);
+  min-height: 40px;
+}
+
+.controls {
+  display: flex;
+  gap: 8px;
+}
+
+button {
+  flex: 1;
+  border: 0;
+  border-radius: 10px;
+  padding: 10px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#endTurnBtn {
+  background: #2b3f67;
+  color: var(--text);
+}
+
+#restartBtn {
+  background: #384f7d;
+  color: var(--text);
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.hidden {
+  display: none;
+}
+
+.modal-content {
+  width: min(420px, 100%);
+  background: #101725;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.relic-options {
+  display: grid;
+  gap: 8px;
+}
+
+.relic-btn {
+  background: #233353;
+  color: var(--text);
+}

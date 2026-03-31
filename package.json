@@ -1,0 +1,18 @@
+{
+  "name": "metro-relic-ios-bootstrap",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Offline turn-based roguelite prototype ready for iOS wrapping via Capacitor.",
+  "scripts": {
+    "dev": "npx serve web -l 4173",
+    "sync:ios": "npx cap sync ios",
+    "open:ios": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "latest"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "latest",
+    "serve": "latest"
+  }
+}
