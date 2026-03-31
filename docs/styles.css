@@ -196,8 +196,11 @@ body {
 .panel {
   background: var(--panel);
   border-radius: 12px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(130, 170, 255, 0.28);
   padding: 12px;
+  box-shadow:
+    0 14px 32px rgba(0, 0, 0, 0.28),
+    inset 0 0 0 1px rgba(94, 133, 220, 0.2);
 }
 
 .log {
@@ -210,40 +213,54 @@ body {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 8px;
+  margin-bottom: 10px;
 }
 
 .info-controls {
   margin-top: 8px;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 8px;
+  gap: 10px;
 }
 
 button {
-  border: 0;
-  border-radius: 10px;
-  padding: 10px;
+  border: 1px solid rgba(124, 164, 255, 0.35);
+  border-radius: 14px;
+  padding: 11px;
   font-weight: 700;
   cursor: pointer;
   font-size: 1rem;
+  transition: transform 0.16s ease, filter 0.2s ease, box-shadow 0.2s ease;
+  min-height: 56px;
+  letter-spacing: 0.01em;
 }
 
 #endTurnBtn {
-  background: #2b3f67;
+  background: linear-gradient(180deg, #3f5b96 0%, #2e4575 100%);
   color: var(--text);
+  box-shadow:
+    0 10px 20px rgba(37, 56, 93, 0.36),
+    0 0 0 1px rgba(120, 167, 255, 0.2);
 }
 
 #restartBtn {
-  background: #384f7d;
+  background: linear-gradient(180deg, #637fc0 0%, #445d97 100%);
   color: var(--text);
+  box-shadow:
+    0 10px 20px rgba(43, 63, 99, 0.36),
+    0 0 0 1px rgba(142, 178, 255, 0.23);
 }
 
 #settingsBtn {
-  background: #2d3d61;
+  background: linear-gradient(180deg, #5a7cff 0%, #405dcf 100%);
   color: var(--text);
   grid-column: 1 / -1;
   width: 100%;
   display: block;
+  border-color: rgba(166, 193, 255, 0.55);
+  box-shadow:
+    0 12px 24px rgba(52, 78, 178, 0.4),
+    0 0 18px rgba(93, 132, 255, 0.35);
 }
 
 @media (max-width: 640px) {
@@ -257,9 +274,31 @@ button {
 #whatsNewBtn,
 #statsBtn,
 #reportBugBtn {
-  background: #22304e;
+  background: linear-gradient(180deg, #2f4c8a 0%, #213868 100%);
   color: var(--text);
   font-weight: 600;
+  box-shadow:
+    0 8px 16px rgba(31, 49, 82, 0.34),
+    0 0 0 1px rgba(110, 154, 255, 0.2);
+}
+
+#reportBugBtn {
+  grid-column: 1 / -1;
+  background: linear-gradient(180deg, #7a4360 0%, #5f3048 100%);
+  border-color: rgba(255, 156, 199, 0.35);
+  box-shadow:
+    0 8px 16px rgba(79, 38, 58, 0.45),
+    0 0 14px rgba(203, 96, 142, 0.22);
+}
+
+button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+button:active {
+  transform: translateY(1px) scale(0.99);
+  filter: brightness(0.98);
 }
 
 .modal {
