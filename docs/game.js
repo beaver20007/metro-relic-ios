@@ -487,6 +487,11 @@ function getPlayerRingColor() {
   }
 }
 
+function getPlayerHpRatio() {
+  const baseHp = Math.max(1, getDifficultyPreset().playerHp);
+  return Math.max(0, Math.min(1, state.hp / baseHp));
+}
+
 function updateStats() {
   const preset = getDifficultyPreset();
   hpEl.textContent = `HP: ${state.hp}`;
@@ -804,10 +809,13 @@ function render() {
       btn.textContent = tileSymbol(x, y);
       btn.type = "button";
       if (state.player.x === x && state.player.y === y) {
+        const hpRatio = getPlayerHpRatio();
+        const ringWidth = Math.max(1, Math.round(1 + hpRatio * 2)); // 1..3 px
+        const glowAlpha = (0.2 + hpRatio * 0.25).toFixed(2); // 0.20..0.45
         btn.style.background = getPlayerTileColor();
-        btn.style.outline = `2px solid ${getPlayerRingColor()}`;
-        btn.style.outlineOffset = "-2px";
-        btn.style.boxShadow = `0 0 10px ${getPlayerRingColor()}55`;
+        btn.style.outline = `${ringWidth}px solid ${getPlayerRingColor()}`;
+        btn.style.outlineOffset = `${-ringWidth}px`;
+        btn.style.boxShadow = `0 0 10px rgba(90,150,255,${glowAlpha})`;
       }
       btn.addEventListener("click", () => onTileTap(x, y));
       grid.appendChild(btn);
