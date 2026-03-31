@@ -986,13 +986,17 @@ function boot() {
   // Если есть сплеш-экран, сначала показываем его
   if (splashScreen && splashStartBtn && appRoot) {
     appRoot.classList.add("hidden");
+    appRoot.style.display = "none";
     splashScreen.classList.remove("hidden");
+    splashScreen.style.display = "flex";
 
     splashStartBtn.addEventListener("click", () => {
       unlockAudio();
       playSfx("ui");
       splashScreen.classList.add("hidden");
+      splashScreen.style.display = "none";
       appRoot.classList.remove("hidden");
+      appRoot.style.display = "";
       initGame();
     });
 
@@ -1002,12 +1006,17 @@ function boot() {
         playSfx("ui");
         // Переходим в игру и сразу открываем экран "Как играть"
         splashScreen.classList.add("hidden");
+        splashScreen.style.display = "none";
         appRoot.classList.remove("hidden");
+        appRoot.style.display = "";
         initGame();
         openInfoModal("howTo");
       });
     }
   } else {
+    if (appRoot) {
+      appRoot.classList.remove("hidden");
+    }
     initGame();
   }
 }
