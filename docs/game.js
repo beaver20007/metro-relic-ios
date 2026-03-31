@@ -101,6 +101,7 @@ const infoModalBody = document.getElementById("infoModalBody");
 const infoModalCloseBtn = document.getElementById("infoModalCloseBtn");
 const audioStatusEl = document.getElementById("audioStatus");
 let floorTransitionEl = null;
+const BUG_REPORT_GITHUB_NEW_ISSUE_URL = "https://github.com/beaver20007/metro-relic-ios/issues/new";
 
 const infoScreens = {
   howTo: {
@@ -160,15 +161,41 @@ const infoScreens = {
   reportBug: {
     title: "Сообщить о баге",
     body: `
-      <p>Если заметил проблему, отправь отчёт в чат/канал тестирования проекта.</p>
-      <h3>Что прислать</h3>
-      <ul>
-        <li>Устройство и платформу (например, iPhone 16 Pro Max / Safari).</li>
-        <li>Шаги воспроизведения по пунктам.</li>
-        <li>Ожидаемый и фактический результат.</li>
-        <li>Скриншот или короткое видео.</li>
-        <li>Повторяемость: всегда / иногда / один раз.</li>
-      </ul>
+      <p>Заполни форму ниже: мы соберем готовый отчёт для отправки.</p>
+      <p>
+        <label>
+          Краткий заголовок проблемы
+          <input id="bugTitleInput" type="text" placeholder="Например: На 2 этаже не играет звук победы" />
+        </label>
+      </p>
+      <p>
+        <label>
+          Шаги воспроизведения
+          <textarea id="bugStepsInput" rows="4" placeholder="1) Открыть игру...&#10;2) Сделать ход...&#10;3) Получилось..."></textarea>
+        </label>
+      </p>
+      <p>
+        <label>
+          Ожидаемый результат
+          <textarea id="bugExpectedInput" rows="2" placeholder="Что должно было произойти"></textarea>
+        </label>
+      </p>
+      <p>
+        <label>
+          Фактический результат
+          <textarea id="bugActualInput" rows="2" placeholder="Что произошло на самом деле"></textarea>
+        </label>
+      </p>
+      <p>
+        <label>
+          Контакты (опционально)
+          <input id="bugContactInput" type="text" placeholder="@telegram / email" />
+        </label>
+      </p>
+      <button id="bugCopyBtn" type="button">Скопировать отчёт</button>
+      <button id="bugOpenIssueBtn" type="button">Открыть заявку на GitHub</button>
+      <button id="bugEmailBtn" type="button">Отправить по email</button>
+      <p id="bugReportStatus" style="margin-top:8px; opacity:.9;"></p>
     `
   }
 };
@@ -920,8 +947,163 @@ function openInfoModal(screenKey) {
     infoModalTitle.textContent = screen.title;
     infoModalBody.innerHTML = screen.body;
     infoModal.classList.remove("hidden");
+    if (screenKey === "reportBug") {
+      setupBugReportForm();
+    }
   } catch (e) {
     console.error("Failed to open info modal", e);
+  }
+}
+
+function buildBugReportText() {
+  try {
+    const title = document.getElementById("bugTitleInput")?.value?.trim() || "Баг-репорт";
+    const steps = document.getElementById("bugStepsInput")?.value?.trim() || "Не указано";
+    const expected = document.getElementById("bugExpectedInput")?.value?.trim() || "Не указано";
+    const actual = document.getElementById("bugActualInput")?.value?.trim() || "Не указано";
+    const contact = document.getElementById("bugContactInput")?.value?.trim() || "Не указан";
+    const platform = navigator.userAgent || "unknown";
+    const currentUrl = window.location.href;
+    return {
+      title,
+      text: [
+        `Заголовок: ${title}`,
+        "",
+        "Шаги воспроизведения:",
+        steps,
+        "",
+        "Ожидаемый результат:",
+        expected,
+        "",
+        "Фактический результат:",
+        actual,
+        "",
+        "Контакт:",
+        contact,
+        "",
+        "Техданные:",
+        `URL: ${currentUrl}`,
+        `User-Agent: ${platform}`,
+        `Этаж: ${state.floor}/${totalFloors}`,
+        `Жизни: ${state.hp}`,
+        `Трофеи: ${state.scrap}`,
+        `Состояние: ${state.over ? "run-over" : "in-run"}`
+      ].join("\n")
+    };
+  } catch (e) {
+    console.error("Failed to build bug report text", e);
+    return { title: "Баг-репорт", text: "Не удалось собрать отчёт автоматически." };
+  }
+}
+
+function validateBugReportForm() {
+  try {
+    const titleEl = document.getElementById("bugTitleInput");
+    const stepsEl = document.getElementById("bugStepsInput");
+    const expectedEl = document.getElementById("bugExpectedInput");
+    const actualEl = document.getElementById("bugActualInput");
+    const fields = [titleEl, stepsEl, expectedEl, actualEl].filter(Boolean);
+
+    fields.forEach((field) => field.classList.remove("field-error"));
+
+    const errors = [];
+    if (!titleEl || titleEl.value.trim().length < 6) {
+      errors.push("Заголовок должен быть не короче 6 символов.");
+      titleEl?.classList.add("field-error");
+    }
+    if (!stepsEl || stepsEl.value.trim().length < 10) {
+      errors.push("Опиши шаги воспроизведения (минимум 10 символов).");
+      stepsEl?.classList.add("field-error");
+    }
+    if (!expectedEl || expectedEl.value.trim().length < 6) {
+      errors.push("Укажи ожидаемый результат (минимум 6 символов).");
+      expectedEl?.classList.add("field-error");
+    }
+    if (!actualEl || actualEl.value.trim().length < 6) {
+      errors.push("Укажи фактический результат (минимум 6 символов).");
+      actualEl?.classList.add("field-error");
+    }
+
+    return {
+      ok: errors.length === 0,
+      message: errors.join(" ")
+    };
+  } catch (e) {
+    console.error("Failed to validate bug report form", e);
+    return {
+      ok: false,
+      message: "Не удалось проверить форму. Попробуй снова."
+    };
+  }
+}
+
+function setupBugReportForm() {
+  try {
+    const copyBtn = document.getElementById("bugCopyBtn");
+    const openIssueBtn = document.getElementById("bugOpenIssueBtn");
+    const emailBtn = document.getElementById("bugEmailBtn");
+    const statusEl = document.getElementById("bugReportStatus");
+
+    if (copyBtn) {
+      copyBtn.addEventListener("click", async () => {
+        const validation = validateBugReportForm();
+        if (!validation.ok) {
+          if (statusEl) statusEl.textContent = validation.message;
+          return;
+        }
+        const report = buildBugReportText();
+        try {
+          await navigator.clipboard.writeText(report.text);
+          if (statusEl) statusEl.textContent = "Отчёт скопирован. Вставь его в тикет/чат.";
+          playSfx("ui");
+        } catch (e) {
+          console.error("Failed to copy bug report", e);
+          if (statusEl) statusEl.textContent = "Не удалось скопировать автоматически. Скопируй вручную.";
+        }
+      });
+    }
+
+    if (openIssueBtn) {
+      openIssueBtn.addEventListener("click", () => {
+        const validation = validateBugReportForm();
+        if (!validation.ok) {
+          if (statusEl) statusEl.textContent = validation.message;
+          return;
+        }
+        const report = buildBugReportText();
+        try {
+          const issueUrl = `${BUG_REPORT_GITHUB_NEW_ISSUE_URL}?title=${encodeURIComponent(report.title)}&body=${encodeURIComponent(report.text)}`;
+          window.open(issueUrl, "_blank", "noopener,noreferrer");
+          if (statusEl) statusEl.textContent = "Открыта страница создания issue.";
+          playSfx("ui");
+        } catch (e) {
+          console.error("Failed to open github issue page", e);
+          if (statusEl) statusEl.textContent = "Не удалось открыть GitHub Issue.";
+        }
+      });
+    }
+
+    if (emailBtn) {
+      emailBtn.addEventListener("click", () => {
+        const validation = validateBugReportForm();
+        if (!validation.ok) {
+          if (statusEl) statusEl.textContent = validation.message;
+          return;
+        }
+        const report = buildBugReportText();
+        try {
+          const mailto = `mailto:?subject=${encodeURIComponent(`[Metro Relic] ${report.title}`)}&body=${encodeURIComponent(report.text)}`;
+          window.location.href = mailto;
+          if (statusEl) statusEl.textContent = "Открыт почтовый клиент.";
+          playSfx("ui");
+        } catch (e) {
+          console.error("Failed to open mailto", e);
+          if (statusEl) statusEl.textContent = "Не удалось открыть почтовый клиент.";
+        }
+      });
+    }
+  } catch (e) {
+    console.error("Failed to initialize bug report form", e);
   }
 }
 
