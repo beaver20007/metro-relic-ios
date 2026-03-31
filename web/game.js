@@ -944,6 +944,9 @@ function render() {
       btn.className = tileClass(x, y);
       btn.textContent = tileSymbol(x, y);
       btn.type = "button";
+      // Возвращаем классическое управление кликом/тапом для веба (в т.ч. macOS),
+      // при этом свайп-управление остается доступным.
+      btn.addEventListener("click", () => onTileTap(x, y));
       if (state.player.x === x && state.player.y === y) {
         const hpRatio = getPlayerHpRatio();
         const ringWidth = Math.max(1, Math.round(1 + hpRatio * 2)); // 1..3 px
