@@ -904,12 +904,12 @@ function floorCleared() {
 }
 
 function maybeFinishFloor() {
-  if (!samePos(state.player, state.exit)) return;
+  if (!samePos(state.player, state.exit)) return false;
 
   const exitMode = loadSettings().exitMode || "immediate";
   if (exitMode === "cleared_only" && !floorCleared()) {
     setLog("Сначала зачисти врагов, затем выходи через X.");
-    return;
+    return false;
   }
 
   if (state.floor >= totalFloors) {
@@ -923,7 +923,7 @@ function maybeFinishFloor() {
     playSfx("win");
     setLog(`Победа! Ты выбрался из метро с ${state.scrap} scrap.`);
     render();
-    return;
+    return true;
   }
 
   chooseRelic(() => {
@@ -936,6 +936,7 @@ function maybeFinishFloor() {
     setLog(`${getStationByFloor(state.floor)}. Этаж ${state.floor}. Враги стали сильнее.`);
     render();
   });
+  return true;
 }
 
 function onTileTap(x, y) {
@@ -946,6 +947,7 @@ function onTileTap(x, y) {
 
   if (enemy && dist === 1) {
     attackEnemy(enemy);
+    if (maybeFinishFloor()) return;
     enemyTurn();
     render();
     maybeFinishFloor();
@@ -960,6 +962,7 @@ function onTileTap(x, y) {
 
   state.player.x = x;
   state.player.y = y;
+  if (maybeFinishFloor()) return;
   playSfx("move");
   enemyTurn();
   render();
