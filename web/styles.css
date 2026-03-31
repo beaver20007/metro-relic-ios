@@ -142,6 +142,10 @@ body {
   color: var(--muted);
 }
 
+#audioStatus {
+  opacity: 0.9;
+}
+
 .grid {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -237,21 +241,21 @@ button {
 #settingsBtn {
   background: #2d3d61;
   color: var(--text);
+  grid-column: 1 / -1;
+  width: 100%;
+  display: block;
 }
 
 @media (max-width: 640px) {
   .controls {
     grid-template-columns: 1fr 1fr;
   }
-
-  #settingsBtn {
-    grid-column: 1 / -1;
-  }
 }
 
 #howToBtn,
 #faqBtn,
 #whatsNewBtn,
+#statsBtn,
 #reportBugBtn {
   background: #22304e;
   color: var(--text);

@@ -5,7 +5,9 @@ const relicPool = [
   { id: "steel", name: "Стальная обшивка (+3 HP)", apply: (s) => (s.hp += 3) },
   { id: "claw", name: "Заточка (+1 урон)", apply: (s) => (s.playerDamage += 1) },
   { id: "battery", name: "Энергоячейка (+2 scrap)", apply: (s) => (s.scrap += 2) },
-  { id: "boots", name: "Тактические ботинки (рывок раз в бой)", apply: (s) => (s.dashCharges += 1) }
+  { id: "boots", name: "Тактические ботинки (рывок раз в бой)", apply: (s) => (s.dashCharges += 1) },
+  { id: "injector", name: "Боевой инжектор (+2 HP, +1 урон)", apply: (s) => ((s.hp += 2), (s.playerDamage += 1)) },
+  { id: "scrapper", name: "Сборщик лома (+4 scrap)", apply: (s) => (s.scrap += 4) }
 ];
 
 const state = {
@@ -22,10 +24,24 @@ const state = {
 
 const SAVE_KEY = "metroRelicSaveV1";
 const SETTINGS_KEY = "metroRelicSettingsV1";
+const METRICS_KEY = "metroRelicMetricsV1";
 const DEFAULT_SETTINGS = {
   uiScale: 1,
   difficulty: "normal",
-  soundEnabled: true
+  soundEnabled: true,
+  volume: 70
+};
+const DEFAULT_METRICS = {
+  runs: 0,
+  wins: 0,
+  defeats: 0,
+  maxFloorReached: 1,
+  lastPlayedAt: null
+};
+const floorStations = {
+  1: "Станция: Речной вокзал",
+  2: "Станция: Театральная",
+  3: "Станция: Депо-13"
 };
 const difficultyPresets = {
   easy: {
@@ -72,6 +88,7 @@ const settingsBtn = document.getElementById("settingsBtn");
 const howToBtn = document.getElementById("howToBtn");
 const faqBtn = document.getElementById("faqBtn");
 const whatsNewBtn = document.getElementById("whatsNewBtn");
+const statsBtn = document.getElementById("statsBtn");
 const reportBugBtn = document.getElementById("reportBugBtn");
 const relicModal = document.getElementById("relicModal");
 const relicOptions = document.getElementById("relicOptions");
@@ -79,6 +96,7 @@ const infoModal = document.getElementById("infoModal");
 const infoModalTitle = document.getElementById("infoModalTitle");
 const infoModalBody = document.getElementById("infoModalBody");
 const infoModalCloseBtn = document.getElementById("infoModalCloseBtn");
+const audioStatusEl = document.getElementById("audioStatus");
 
 const infoScreens = {
   howTo: {
@@ -129,6 +147,8 @@ const infoScreens = {
         <li>Добавлено автосохранение прогресса.</li>
         <li>Подготовлен iOS-билд через Capacitor.</li>
         <li>Добавлены встроенные экраны инструкции и FAQ.</li>
+        <li>Добавлены звуки действий и экран статистики.</li>
+        <li>Расширены реликвии и атмосфера метро по этажам.</li>
         <li>Улучшен онбординг для внешних тестеров.</li>
       </ul>
     `
@@ -149,12 +169,201 @@ const infoScreens = {
   }
 };
 
+let audioCtx = null;
+const audioBuffers = {};
+const AUDIO_FILES = {
+  ui: "./assets/sfx/ui.mp3",
+  move: "./assets/sfx/move.mp3",
+  attack: "./assets/sfx/attack.mp3",
+  hit: "./assets/sfx/hit.mp3",
+  death: "./assets/sfx/death.mp3",
+  win: "./assets/sfx/win.mp3"
+};
+
 function rand(max) {
   return Math.floor(Math.random() * max);
 }
 
 function setLog(msg) {
   logEl.textContent = msg;
+}
+
+function updateAudioStatus(label) {
+  if (!audioStatusEl) return;
+  audioStatusEl.textContent = `Audio: ${label}`;
+}
+
+function loadMetrics() {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return { ...DEFAULT_METRICS };
+    const raw = window.localStorage.getItem(METRICS_KEY);
+    if (!raw) return { ...DEFAULT_METRICS };
+    const data = JSON.parse(raw);
+    if (!data || typeof data !== "object") return { ...DEFAULT_METRICS };
+    return {
+      ...DEFAULT_METRICS,
+      ...data
+    };
+  } catch (e) {
+    console.error("Failed to load metrics", e);
+    return { ...DEFAULT_METRICS };
+  }
+}
+
+function saveMetrics(metrics) {
+  try {
+    if (typeof window === "undefined" || !window.localStorage) return;
+    window.localStorage.setItem(METRICS_KEY, JSON.stringify(metrics));
+  } catch (e) {
+    console.error("Failed to save metrics", e);
+  }
+}
+
+function patchMetrics(patch) {
+  const current = loadMetrics();
+  const next = {
+    ...current,
+    ...patch
+  };
+  saveMetrics(next);
+}
+
+function getStationByFloor(floor) {
+  return floorStations[floor] || "Станция: Неизвестная линия";
+}
+
+function getAudioContext() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+    if (!audioCtx) audioCtx = new AudioContextClass();
+    return audioCtx;
+  } catch (e) {
+    console.error("Failed to create audio context", e);
+    return null;
+  }
+}
+
+async function unlockAudio() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") {
+      await ctx.resume();
+    }
+    updateAudioStatus("unlocked");
+  } catch (e) {
+    console.error("Failed to unlock audio", e);
+    updateAudioStatus("error");
+  }
+}
+
+function setupGlobalAudioUnlock() {
+  const unlockOnce = async () => {
+    await unlockAudio();
+    document.removeEventListener("pointerdown", unlockOnce);
+    document.removeEventListener("touchstart", unlockOnce);
+    document.removeEventListener("keydown", unlockOnce);
+  };
+
+  document.addEventListener("pointerdown", unlockOnce, { passive: true });
+  document.addEventListener("touchstart", unlockOnce, { passive: true });
+  document.addEventListener("keydown", unlockOnce);
+}
+
+async function preloadAudioBuffers() {
+  try {
+    const ctx = getAudioContext();
+    if (!ctx) return;
+
+    for (const [key, path] of Object.entries(AUDIO_FILES)) {
+      try {
+        const response = await fetch(path, { cache: "no-store" });
+        if (!response.ok) continue;
+        const arr = await response.arrayBuffer();
+        const decoded = await ctx.decodeAudioData(arr.slice(0));
+        audioBuffers[key] = decoded;
+      } catch (e) {
+        console.warn(`Audio file for ${key} unavailable`, e);
+      }
+    }
+
+    const loaded = Object.keys(audioBuffers).length;
+    updateAudioStatus(loaded > 0 ? `mp3 ${loaded}/6` : "fallback");
+  } catch (e) {
+    console.error("Failed to preload audio buffers", e);
+    updateAudioStatus("fallback");
+  }
+}
+
+function playTone(frequency, duration, type = "sine", volume = 0.03) {
+  try {
+    if (!loadSettings().soundEnabled) return;
+    const ctx = getAudioContext();
+    if (!ctx) return;
+    if (ctx.state === "suspended") return;
+    const now = ctx.currentTime;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(frequency, now);
+    const masterVolume = normalizeSettings(loadSettings()).volume / 100;
+    gain.gain.setValueAtTime(volume * masterVolume, now);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.start(now);
+    osc.stop(now + duration);
+  } catch (e) {
+    console.error("Failed to play tone", e);
+  }
+}
+
+function playSfx(kind) {
+  try {
+    if (!loadSettings().soundEnabled) return;
+    const ctx = getAudioContext();
+    const buffer = audioBuffers[kind];
+    if (ctx && ctx.state === "running" && buffer) {
+      const source = ctx.createBufferSource();
+      const gain = ctx.createGain();
+      const masterVolume = normalizeSettings(loadSettings()).volume / 100;
+      source.buffer = buffer;
+      gain.gain.value = Math.max(0, Math.min(1, masterVolume));
+      source.connect(gain);
+      gain.connect(ctx.destination);
+      source.start();
+      return;
+    }
+  } catch (e) {
+    console.error("Failed to play mp3 sfx", e);
+  }
+
+  // fallback на синтетические звуки, если mp3 недоступны
+  switch (kind) {
+    case "move":
+      playTone(280, 0.09, "triangle", 0.05);
+      break;
+    case "attack":
+      playTone(420, 0.09, "square", 0.07);
+      playTone(250, 0.12, "triangle", 0.05);
+      break;
+    case "hit":
+      playTone(180, 0.15, "sawtooth", 0.08);
+      break;
+    case "death":
+      playTone(120, 0.25, "sawtooth", 0.1);
+      break;
+    case "win":
+      playTone(520, 0.1, "sine", 0.06);
+      playTone(660, 0.14, "sine", 0.06);
+      break;
+    case "ui":
+      playTone(360, 0.06, "triangle", 0.05);
+      break;
+    default:
+      break;
+  }
 }
 
 function samePos(a, b) {
@@ -295,9 +504,9 @@ function clearSavedGame() {
 
 function loadSettings() {
   try {
-    if (typeof window === "undefined" || !window.localStorage) return {};
+    if (typeof window === "undefined" || !window.localStorage) return { ...DEFAULT_SETTINGS };
     const raw = window.localStorage.getItem(SETTINGS_KEY);
-    if (!raw) return {};
+    if (!raw) return { ...DEFAULT_SETTINGS };
     const data = JSON.parse(raw);
     if (!data || typeof data !== "object") return { ...DEFAULT_SETTINGS };
     return normalizeSettings(data);
@@ -327,7 +536,10 @@ function normalizeSettings(settings) {
   return {
     uiScale: normalizedScale,
     difficulty,
-    soundEnabled: safe.soundEnabled !== false
+    soundEnabled: safe.soundEnabled !== false,
+    volume: Number.isFinite(Number(safe.volume))
+      ? Math.min(100, Math.max(0, Number(safe.volume)))
+      : DEFAULT_SETTINGS.volume
   };
 }
 
@@ -382,6 +594,13 @@ function openSettings() {
         Включен
       </label>
     </p>
+    <p>
+      <label>
+        Громкость:
+        <input id="volumeRange" type="range" min="0" max="100" step="1" />
+        <span id="volumeValue"></span>
+      </label>
+    </p>
     <h3>Прогресс</h3>
     <p>Можно начать новый забег и очистить текущее автосохранение.</p>
     <button id="settingsApplyBtn" type="button">Применить сложность и начать новый забег</button>
@@ -396,6 +615,8 @@ function openSettings() {
   const uiScaleSelect = document.getElementById("uiScaleSelect");
   const difficultySelect = document.getElementById("difficultySelect");
   const soundToggle = document.getElementById("soundToggle");
+  const volumeRange = document.getElementById("volumeRange");
+  const volumeValue = document.getElementById("volumeValue");
   if (uiScaleSelect) {
     uiScaleSelect.value = String(settings.uiScale);
   }
@@ -404,6 +625,12 @@ function openSettings() {
   }
   if (soundToggle) {
     soundToggle.checked = settings.soundEnabled;
+  }
+  if (volumeRange) {
+    volumeRange.value = String(settings.volume);
+  }
+  if (volumeValue) {
+    volumeValue.textContent = `${settings.volume}%`;
   }
 
   uiScaleSelect?.addEventListener("change", () => {
@@ -431,9 +658,22 @@ function openSettings() {
     saveSettings(settings);
   });
 
+  volumeRange?.addEventListener("input", () => {
+    settings = {
+      ...settings,
+      volume: Number(volumeRange.value)
+    };
+    if (volumeValue) {
+      volumeValue.textContent = `${settings.volume}%`;
+    }
+    saveSettings(settings);
+    playSfx("ui");
+  });
+
   const applyBtn = document.getElementById("settingsApplyBtn");
   if (applyBtn) {
     applyBtn.addEventListener("click", () => {
+      playSfx("ui");
       closeInfoModal();
       resetGame();
       const preset = getDifficultyPreset();
@@ -445,11 +685,29 @@ function openSettings() {
   const resetRunBtn = document.getElementById("settingsResetRunBtn");
   if (resetRunBtn) {
     resetRunBtn.addEventListener("click", () => {
+      playSfx("ui");
       clearSavedGame();
       closeInfoModal();
       resetGame();
     });
   }
+}
+
+function openStatsModal() {
+  const m = loadMetrics();
+  const formattedTime = m.lastPlayedAt ? new Date(m.lastPlayedAt).toLocaleString("ru-RU") : "еще не было";
+  infoModalTitle.textContent = "Статистика";
+  infoModalBody.innerHTML = `
+    <h3>Общая</h3>
+    <ul>
+      <li>Запусков забега: ${m.runs}</li>
+      <li>Побед: ${m.wins}</li>
+      <li>Поражений: ${m.defeats}</li>
+      <li>Максимальный этаж: ${m.maxFloorReached}/${totalFloors}</li>
+      <li>Последняя игра: ${formattedTime}</li>
+    </ul>
+  `;
+  infoModal.classList.remove("hidden");
 }
 
 function openInfoModal(screenKey) {
@@ -494,6 +752,7 @@ function render() {
 function attackEnemy(enemy) {
   const preset = getDifficultyPreset();
   enemy.hp -= state.playerDamage;
+  playSfx("attack");
   setLog(`Ты ударил врага на ${state.playerDamage}.`);
   if (enemy.hp <= 0) {
     const baseScrap = enemy.boss ? 5 : 2;
@@ -508,8 +767,14 @@ function enemyTurn() {
     const dist = manhattan(enemy, state.player);
     if (dist === 1) {
       state.hp -= enemy.damage;
+      playSfx("hit");
       if (state.hp <= 0) {
         state.over = true;
+        patchMetrics({
+          defeats: loadMetrics().defeats + 1,
+          lastPlayedAt: new Date().toISOString()
+        });
+        playSfx("death");
         setLog("Ты погиб в туннелях. Нажми 'Новый забег'.");
         return;
       }
@@ -540,6 +805,13 @@ function maybeFinishFloor() {
 
   if (state.floor >= totalFloors) {
     state.over = true;
+    const metrics = loadMetrics();
+    patchMetrics({
+      wins: metrics.wins + 1,
+      maxFloorReached: Math.max(metrics.maxFloorReached, totalFloors),
+      lastPlayedAt: new Date().toISOString()
+    });
+    playSfx("win");
     setLog(`Победа! Ты выбрался из метро с ${state.scrap} scrap.`);
     render();
     return;
@@ -547,8 +819,12 @@ function maybeFinishFloor() {
 
   chooseRelic(() => {
     state.floor += 1;
+    patchMetrics({
+      maxFloorReached: Math.max(loadMetrics().maxFloorReached, state.floor),
+      lastPlayedAt: new Date().toISOString()
+    });
     spawnFloor();
-    setLog(`Этаж ${state.floor}. Враги стали сильнее.`);
+    setLog(`${getStationByFloor(state.floor)}. Этаж ${state.floor}. Враги стали сильнее.`);
     render();
   });
 }
@@ -568,12 +844,14 @@ function onTileTap(x, y) {
   }
 
   if (dist !== 1 || enemy) {
+    playSfx("ui");
     setLog("Можно ходить только на соседнюю свободную клетку.");
     return;
   }
 
   state.player.x = x;
   state.player.y = y;
+  playSfx("move");
   enemyTurn();
   render();
   maybeFinishFloor();
@@ -589,7 +867,13 @@ function resetGame() {
   state.dashCharges = 0;
   state.over = false;
   spawnFloor();
-  setLog("Новый забег. Уничтожь врагов и зайди на выход X.");
+  const metrics = loadMetrics();
+  patchMetrics({
+    runs: metrics.runs + 1,
+    maxFloorReached: Math.max(metrics.maxFloorReached, 1),
+    lastPlayedAt: new Date().toISOString()
+  });
+  setLog(`${getStationByFloor(state.floor)}. Новый забег. Уничтожь врагов и зайди на выход X.`);
   render();
 }
 
@@ -627,23 +911,54 @@ endTurnBtn.addEventListener("click", () => {
 
 restartBtn.addEventListener("click", resetGame);
 if (settingsBtn) {
-  settingsBtn.addEventListener("click", openSettings);
+  settingsBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    openSettings();
+  });
 }
 
 if (howToBtn) {
-  howToBtn.addEventListener("click", () => openInfoModal("howTo"));
+  howToBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    openInfoModal("howTo");
+  });
 }
 if (faqBtn) {
-  faqBtn.addEventListener("click", () => openInfoModal("faq"));
+  faqBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    openInfoModal("faq");
+  });
 }
 if (whatsNewBtn) {
-  whatsNewBtn.addEventListener("click", () => openInfoModal("whatsNew"));
+  whatsNewBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    openInfoModal("whatsNew");
+  });
+}
+if (statsBtn) {
+  statsBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    openStatsModal();
+  });
 }
 if (reportBugBtn) {
-  reportBugBtn.addEventListener("click", () => openInfoModal("reportBug"));
+  reportBugBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    openInfoModal("reportBug");
+  });
 }
 if (infoModalCloseBtn) {
-  infoModalCloseBtn.addEventListener("click", closeInfoModal);
+  infoModalCloseBtn.addEventListener("click", async () => {
+    await unlockAudio();
+    playSfx("ui");
+    closeInfoModal();
+  });
 }
 if (infoModal) {
   infoModal.addEventListener("click", (event) => {
@@ -666,12 +981,16 @@ function initGame() {
 }
 
 function boot() {
+  setupGlobalAudioUnlock();
+  preloadAudioBuffers();
   // Если есть сплеш-экран, сначала показываем его
   if (splashScreen && splashStartBtn && appRoot) {
     appRoot.classList.add("hidden");
     splashScreen.classList.remove("hidden");
 
     splashStartBtn.addEventListener("click", () => {
+      unlockAudio();
+      playSfx("ui");
       splashScreen.classList.add("hidden");
       appRoot.classList.remove("hidden");
       initGame();
@@ -679,6 +998,8 @@ function boot() {
 
     if (splashHowToBtn) {
       splashHowToBtn.addEventListener("click", () => {
+        unlockAudio();
+        playSfx("ui");
         // Переходим в игру и сразу открываем экран "Как играть"
         splashScreen.classList.add("hidden");
         appRoot.classList.remove("hidden");
