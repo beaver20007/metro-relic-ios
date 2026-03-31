@@ -531,4 +531,16 @@ label {
   .app {
     padding-bottom: calc(72px + env(safe-area-inset-bottom));
   }
+
+  .controls,
+  .info-controls {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  #settingsBtn,
+  #reportBugBtn {
+    grid-column: auto;
+    width: 100%;
+    display: block;
+  }
 }
