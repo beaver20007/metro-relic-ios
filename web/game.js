@@ -834,7 +834,6 @@ function render() {
         btn.style.outlineOffset = `${-ringWidth}px`;
         btn.style.boxShadow = `0 0 10px rgba(90,150,255,${glowAlpha})`;
       }
-      btn.addEventListener("click", () => onTileTap(x, y));
       grid.appendChild(btn);
     }
   }
@@ -980,6 +979,59 @@ function onTileTap(x, y) {
   maybeFinishFloor();
 }
 
+function handleSwipeMove(deltaX, deltaY) {
+  if (state.over) return;
+
+  const absX = Math.abs(deltaX);
+  const absY = Math.abs(deltaY);
+  if (absX < 24 && absY < 24) return;
+
+  let targetX = state.player.x;
+  let targetY = state.player.y;
+
+  if (absX >= absY) {
+    targetX += deltaX > 0 ? 1 : -1;
+  } else {
+    targetY += deltaY > 0 ? 1 : -1;
+  }
+
+  if (!inBounds(targetX, targetY)) {
+    setLog("Дальше туннельной стены идти нельзя.");
+    return;
+  }
+
+  onTileTap(targetX, targetY);
+}
+
+function setupSwipeControls() {
+  if (!grid) return;
+
+  let startX = 0;
+  let startY = 0;
+  let tracking = false;
+
+  grid.addEventListener("touchstart", (event) => {
+    if (!event.touches || event.touches.length !== 1) return;
+    const t = event.touches[0];
+    startX = t.clientX;
+    startY = t.clientY;
+    tracking = true;
+  }, { passive: true });
+
+  grid.addEventListener("touchmove", (event) => {
+    if (!tracking) return;
+    event.preventDefault();
+  }, { passive: false });
+
+  grid.addEventListener("touchend", (event) => {
+    if (!tracking) return;
+    const t = event.changedTouches && event.changedTouches[0];
+    tracking = false;
+    if (!t) return;
+    handleSwipeMove(t.clientX - startX, t.clientY - startY);
+  }, { passive: true });
+}
+
 function resetGame() {
   const preset = getDifficultyPreset();
   clearSavedGame();
@@ -1104,6 +1156,7 @@ function initGame() {
 }
 
 function boot() {
+  setupSwipeControls();
   setupGlobalAudioUnlock();
   setupAudioElements();
   preloadAudioBuffers();
