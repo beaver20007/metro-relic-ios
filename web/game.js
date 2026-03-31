@@ -186,6 +186,11 @@ const AUDIO_FILES = {
   win: "./assets/sfx/win.mp3",
   transition: "./assets/sfx/transition.mp3"
 };
+const EVENT_SFX_BOOST = {
+  transition: { boost: 1.35, min: 0.55 },
+  win: { boost: 1.45, min: 0.62 },
+  death: { boost: 1.5, min: 0.65 }
+};
 
 function rand(max) {
   return Math.floor(Math.random() * max);
@@ -417,10 +422,15 @@ function playSfx(kind) {
     const el = audioElements[kind];
     if (el) {
       const instance = el.cloneNode(true);
-      instance.volume = Math.max(0, Math.min(1, normalizeSettings(loadSettings()).volume / 100));
+      const settingsVolume = normalizeSettings(loadSettings()).volume / 100;
+      const eventConfig = EVENT_SFX_BOOST[kind];
+      const boostedVolume = eventConfig
+        ? Math.max(eventConfig.min, settingsVolume * eventConfig.boost)
+        : settingsVolume;
+      instance.volume = Math.max(0, Math.min(1, boostedVolume));
       instance.play().catch(() => {});
       updateAudioStatus("mp3");
-      return;
+      if (!eventConfig) return;
     }
   } catch (e) {
     console.error("Failed to play html audio sfx", e);
@@ -458,15 +468,19 @@ function playSfx(kind) {
       playTone(180, 0.15, "sawtooth", 0.08);
       break;
     case "death":
-      playTone(120, 0.25, "sawtooth", 0.1);
+      playTone(180, 0.08, "square", 0.11);
+      playTone(130, 0.22, "sawtooth", 0.13);
+      playTone(92, 0.32, "sawtooth", 0.12);
       break;
     case "win":
-      playTone(520, 0.1, "sine", 0.06);
-      playTone(660, 0.14, "sine", 0.06);
+      playTone(520, 0.1, "triangle", 0.09);
+      playTone(660, 0.14, "sine", 0.1);
+      playTone(880, 0.24, "sine", 0.11);
       break;
     case "transition":
-      playTone(330, 0.1, "triangle", 0.05);
-      playTone(440, 0.16, "sine", 0.05);
+      playTone(260, 0.08, "triangle", 0.09);
+      playTone(340, 0.1, "triangle", 0.1);
+      playTone(440, 0.14, "sine", 0.1);
       break;
     case "ui":
       playTone(360, 0.06, "triangle", 0.05);
