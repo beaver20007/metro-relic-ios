@@ -875,6 +875,17 @@ function floorCleared() {
   return state.enemies.every((e) => e.hp <= 0);
 }
 
+function advanceToNextFloor() {
+  state.floor += 1;
+  patchMetrics({
+    maxFloorReached: Math.max(loadMetrics().maxFloorReached, state.floor),
+    lastPlayedAt: new Date().toISOString()
+  });
+  spawnFloor();
+  setLog(`${getStationByFloor(state.floor)}. Этаж ${state.floor}. Враги стали сильнее.`);
+  render();
+}
+
 function maybeFinishFloor() {
   if (!samePos(state.player, state.exit)) return false;
 
@@ -892,16 +903,17 @@ function maybeFinishFloor() {
     return true;
   }
 
-  chooseRelic(() => {
-    state.floor += 1;
-    patchMetrics({
-      maxFloorReached: Math.max(loadMetrics().maxFloorReached, state.floor),
-      lastPlayedAt: new Date().toISOString()
-    });
-    spawnFloor();
-    setLog(`${getStationByFloor(state.floor)}. Этаж ${state.floor}. Враги стали сильнее.`);
-    render();
-  });
+  // Надежный сценарий: если модалка реликвий недоступна/сломана, просто идем дальше.
+  try {
+    if (relicModal && relicOptions && typeof chooseRelic === "function") {
+      chooseRelic(advanceToNextFloor);
+    } else {
+      advanceToNextFloor();
+    }
+  } catch (e) {
+    console.error("Failed to show relic modal, advancing floor directly", e);
+    advanceToNextFloor();
+  }
   return true;
 }
 
