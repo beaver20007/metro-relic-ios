@@ -433,19 +433,28 @@ function playTone(frequency, duration, type = "sine", volume = 0.03) {
     if (!loadSettings().soundEnabled) return;
     const ctx = getAudioContext();
     if (!ctx) return;
-    if (ctx.state === "suspended") return;
-    const now = ctx.currentTime;
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = type;
-    osc.frequency.setValueAtTime(frequency, now);
-    const masterVolume = normalizeSettings(loadSettings()).volume / 100;
-    gain.gain.setValueAtTime(volume * masterVolume, now);
-    gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(now);
-    osc.stop(now + duration);
+
+    const run = () => {
+      if (ctx.state !== "running") return;
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = type;
+      osc.frequency.setValueAtTime(frequency, now);
+      const masterVolume = normalizeSettings(loadSettings()).volume / 100;
+      gain.gain.setValueAtTime(volume * masterVolume, now);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + duration);
+    };
+
+    if (ctx.state === "running") {
+      run();
+    } else {
+      void ctx.resume().then(run);
+    }
   } catch (e) {
     console.error("Failed to play tone", e);
   }
@@ -469,77 +478,99 @@ function playVictoryFanfare(variant = ACTIVE_VICTORY_SFX) {
   }
 }
 
-function playSfx(kind) {
+async function playSfx(kind) {
   try {
     if (!loadSettings().soundEnabled) return;
+
+    try {
+      const pre = getAudioContext();
+      if (pre && pre.state === "suspended") {
+        void pre.resume();
+      }
+    } catch (e) {
+      /* ignore */
+    }
+
+    await unlockAudio();
+
+    const eventConfig = EVENT_SFX_BOOST[kind];
+    const settingsVolume = normalizeSettings(loadSettings()).volume / 100;
+    const vol = Math.max(
+      0,
+      Math.min(
+        1,
+        eventConfig ? Math.max(eventConfig.min, settingsVolume * eventConfig.boost) : settingsVolume
+      )
+    );
+
     const el = audioElements[kind];
     if (el) {
-      const instance = el.cloneNode(true);
-      const settingsVolume = normalizeSettings(loadSettings()).volume / 100;
-      const eventConfig = EVENT_SFX_BOOST[kind];
-      const boostedVolume = eventConfig
-        ? Math.max(eventConfig.min, settingsVolume * eventConfig.boost)
-        : settingsVolume;
-      instance.volume = Math.max(0, Math.min(1, boostedVolume));
-      instance.play().catch(() => {});
-      updateAudioStatus("mp3");
-      // Для победы используем только внешний трек (если он доступен),
-      // без наложения синтетической фанфары.
-      if (kind === "win" || !eventConfig) return;
+      try {
+        const instance = el.cloneNode(true);
+        instance.volume = vol;
+        await instance.play();
+        updateAudioStatus("mp3");
+        return;
+      } catch (e) {
+        /* HTMLAudio может отказать (автовоспроизведение) — идём в Web Audio / синтез */
+      }
     }
-  } catch (e) {
-    console.error("Failed to play html audio sfx", e);
-  }
 
-  try {
-    if (!loadSettings().soundEnabled) return;
     const ctx = getAudioContext();
     const buffer = audioBuffers[kind];
-    if (ctx && ctx.state === "running" && buffer) {
-      const source = ctx.createBufferSource();
-      const gain = ctx.createGain();
-      const masterVolume = normalizeSettings(loadSettings()).volume / 100;
-      source.buffer = buffer;
-      gain.gain.value = Math.max(0, Math.min(1, masterVolume));
-      source.connect(gain);
-      gain.connect(ctx.destination);
-      source.start();
-      return;
+    if (ctx && buffer) {
+      try {
+        if (ctx.state === "suspended") {
+          await ctx.resume();
+        }
+        if (ctx.state === "running") {
+          const source = ctx.createBufferSource();
+          const gain = ctx.createGain();
+          source.buffer = buffer;
+          gain.gain.value = vol;
+          source.connect(gain);
+          gain.connect(ctx.destination);
+          source.start();
+          updateAudioStatus("mp3");
+          return;
+        }
+      } catch (e) {
+        console.warn("Web Audio buffer play failed", kind, e);
+      }
+    }
+
+    switch (kind) {
+      case "move":
+        playTone(280, 0.09, "triangle", 0.05);
+        break;
+      case "attack":
+        playTone(420, 0.09, "square", 0.07);
+        playTone(250, 0.12, "triangle", 0.05);
+        break;
+      case "hit":
+        playTone(180, 0.15, "sawtooth", 0.08);
+        break;
+      case "death":
+        playTone(180, 0.08, "square", 0.11);
+        playTone(130, 0.22, "sawtooth", 0.13);
+        playTone(92, 0.32, "sawtooth", 0.12);
+        break;
+      case "win":
+        playVictoryFanfare();
+        break;
+      case "transition":
+        playTone(260, 0.08, "triangle", 0.09);
+        playTone(340, 0.1, "triangle", 0.1);
+        playTone(440, 0.14, "sine", 0.1);
+        break;
+      case "ui":
+        playTone(360, 0.06, "triangle", 0.05);
+        break;
+      default:
+        break;
     }
   } catch (e) {
-    console.error("Failed to play mp3 sfx", e);
-  }
-
-  // fallback на синтетические звуки, если mp3 недоступны
-  switch (kind) {
-    case "move":
-      playTone(280, 0.09, "triangle", 0.05);
-      break;
-    case "attack":
-      playTone(420, 0.09, "square", 0.07);
-      playTone(250, 0.12, "triangle", 0.05);
-      break;
-    case "hit":
-      playTone(180, 0.15, "sawtooth", 0.08);
-      break;
-    case "death":
-      playTone(180, 0.08, "square", 0.11);
-      playTone(130, 0.22, "sawtooth", 0.13);
-      playTone(92, 0.32, "sawtooth", 0.12);
-      break;
-    case "win":
-      playVictoryFanfare();
-      break;
-    case "transition":
-      playTone(260, 0.08, "triangle", 0.09);
-      playTone(340, 0.1, "triangle", 0.1);
-      playTone(440, 0.14, "sine", 0.1);
-      break;
-    case "ui":
-      playTone(360, 0.06, "triangle", 0.05);
-      break;
-    default:
-      break;
+    console.error("playSfx failed", kind, e);
   }
 }
 
@@ -1689,9 +1720,9 @@ function boot() {
     splashScreen.classList.remove("hidden");
     splashScreen.style.display = "flex";
 
-    splashStartBtn.addEventListener("click", () => {
-      unlockAudio();
-      playSfx("ui");
+    splashStartBtn.addEventListener("click", async () => {
+      await unlockAudio();
+      await playSfx("ui");
       splashScreen.classList.add("hidden");
       splashScreen.style.display = "none";
       appRoot.classList.remove("hidden");
@@ -1700,9 +1731,9 @@ function boot() {
     });
 
     if (splashHowToBtn) {
-      splashHowToBtn.addEventListener("click", () => {
-        unlockAudio();
-        playSfx("ui");
+      splashHowToBtn.addEventListener("click", async () => {
+        await unlockAudio();
+        await playSfx("ui");
         // Переходим в игру и сразу открываем экран "Как играть"
         splashScreen.classList.add("hidden");
         splashScreen.style.display = "none";
