@@ -736,9 +736,13 @@ label {
   transform: translateY(-0.5px);
 }
 
-#settingsBtn,
-#reportBugBtn {
+#settingsBtn {
   grid-column: auto !important;
+  width: 100% !important;
+}
+
+#reportBugBtn {
+  grid-column: 1 / -1 !important;
   width: 100% !important;
 }
 
@@ -749,9 +753,14 @@ label {
     gap: 6px !important;
   }
 
-  #settingsBtn,
-  #reportBugBtn {
+  #settingsBtn {
     grid-column: auto !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
+  #reportBugBtn {
+    grid-column: 1 / -1 !important;
     width: 100% !important;
     display: block !important;
   }
@@ -849,7 +858,7 @@ label {
   }
 
   #reportBugBtn {
-    grid-column: auto;
+    grid-column: 1 / -1;
   }
 }
 
@@ -864,9 +873,14 @@ label {
     grid-template-columns: 1fr 1fr;
   }
 
-  #settingsBtn,
-  #reportBugBtn {
+  #settingsBtn {
     grid-column: auto;
+    width: 100%;
+    display: block;
+  }
+
+  #reportBugBtn {
+    grid-column: 1 / -1;
     width: 100%;
     display: block;
   }
