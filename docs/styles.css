@@ -473,6 +473,16 @@ label {
     min-height: 40px !important;
     font-size: 0.84rem !important;
   }
+
+  .grid {
+    max-width: 300px !important;
+    margin-inline: auto !important;
+  }
+
+  .panel {
+    max-height: none !important;
+    overflow: visible !important;
+  }
 }
 
 /* Финальная компактная верстка для iPhone */
