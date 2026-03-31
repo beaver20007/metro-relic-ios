@@ -520,6 +520,10 @@ label {
     border-radius: 10px;
     font-size: 0.8rem;
   }
+
+  #reportBugBtn {
+    grid-column: auto;
+  }
 }
 
 /* Мобильный браузер (не PWA): добавляем место под нижнюю панель браузера */
