@@ -122,8 +122,8 @@ const infoScreens = {
       </ul>
       <h3>Управление</h3>
       <ul>
-        <li>Нажимай на соседнюю клетку, чтобы переместиться.</li>
-        <li>Нажимай на соседнего врага, чтобы атаковать.</li>
+        <li>Свайпай по полю в нужную сторону, чтобы двигаться и атаковать.</li>
+        <li>На клавиатуре используй стрелки или WASD.</li>
         <li>После твоего действия враги делают ход.</li>
       </ul>
     `
@@ -944,9 +944,6 @@ function render() {
       btn.className = tileClass(x, y);
       btn.textContent = tileSymbol(x, y);
       btn.type = "button";
-      // Возвращаем классическое управление кликом/тапом для веба (в т.ч. macOS),
-      // при этом свайп-управление остается доступным.
-      btn.addEventListener("click", () => onTileTap(x, y));
       if (state.player.x === x && state.player.y === y) {
         const hpRatio = getPlayerHpRatio();
         const ringWidth = Math.max(1, Math.round(1 + hpRatio * 2)); // 1..3 px
@@ -1177,6 +1174,35 @@ function setupSwipeControls() {
   }, { passive: true });
 }
 
+function setupKeyboardControls() {
+  window.addEventListener("keydown", (event) => {
+    if (state.over || state.transitioning) return;
+    const activeTag = document.activeElement ? document.activeElement.tagName : "";
+    const inInput = activeTag === "INPUT" || activeTag === "TEXTAREA" || activeTag === "SELECT";
+    if (inInput) return;
+
+    const key = String(event.key || "").toLowerCase();
+    let targetX = state.player.x;
+    let targetY = state.player.y;
+    let handled = true;
+
+    if (key === "arrowleft" || key === "a" || key === "ф") targetX -= 1;
+    else if (key === "arrowright" || key === "d" || key === "в") targetX += 1;
+    else if (key === "arrowup" || key === "w" || key === "ц") targetY -= 1;
+    else if (key === "arrowdown" || key === "s" || key === "ы") targetY += 1;
+    else handled = false;
+
+    if (!handled) return;
+    event.preventDefault();
+
+    if (!inBounds(targetX, targetY)) {
+      setLog("Дальше туннельной стены идти нельзя.");
+      return;
+    }
+    onTileTap(targetX, targetY);
+  });
+}
+
 function resetGame() {
   const preset = getDifficultyPreset();
   clearSavedGame();
@@ -1303,6 +1329,7 @@ function initGame() {
 
 function boot() {
   setupSwipeControls();
+  setupKeyboardControls();
   setupGlobalAudioUnlock();
   setupAudioElements();
   preloadAudioBuffers();
