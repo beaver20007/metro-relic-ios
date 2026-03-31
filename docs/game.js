@@ -2,12 +2,12 @@ const size = 7;
 const totalFloors = 3;
 
 const relicPool = [
-  { id: "steel", name: "Стальная обшивка (+3 HP)", apply: (s) => (s.hp += 3) },
+  { id: "steel", name: "Стальная обшивка (+3 жизни)", apply: (s) => (s.hp += 3) },
   { id: "claw", name: "Заточка (+1 урон)", apply: (s) => (s.playerDamage += 1) },
-  { id: "battery", name: "Энергоячейка (+2 scrap)", apply: (s) => (s.scrap += 2) },
+  { id: "battery", name: "Энергоячейка (+2 трофея)", apply: (s) => (s.scrap += 2) },
   { id: "boots", name: "Тактические ботинки (рывок раз в бой)", apply: (s) => (s.dashCharges += 1) },
-  { id: "injector", name: "Боевой инжектор (+2 HP, +1 урон)", apply: (s) => ((s.hp += 2), (s.playerDamage += 1)) },
-  { id: "scrapper", name: "Сборщик лома (+4 scrap)", apply: (s) => (s.scrap += 4) }
+  { id: "injector", name: "Боевой инжектор (+2 жизни, +1 урон)", apply: (s) => ((s.hp += 2), (s.playerDamage += 1)) },
+  { id: "scrapper", name: "Сборщик трофеев (+4 трофея)", apply: (s) => (s.scrap += 4) }
 ];
 
 const state = {
@@ -188,6 +188,15 @@ function rand(max) {
 
 function setLog(msg) {
   logEl.textContent = msg;
+}
+
+function formatTrophies(count) {
+  const n = Math.abs(count) % 100;
+  const n1 = n % 10;
+  if (n > 10 && n < 20) return `${count} трофеев`;
+  if (n1 > 1 && n1 < 5) return `${count} трофея`;
+  if (n1 === 1) return `${count} трофей`;
+  return `${count} трофеев`;
 }
 
 function updateAudioStatus(label) {
@@ -494,8 +503,8 @@ function getPlayerHpRatio() {
 
 function updateStats() {
   const preset = getDifficultyPreset();
-  hpEl.textContent = `HP: ${state.hp}`;
-  scrapEl.textContent = `Scrap: ${state.scrap}`;
+  hpEl.textContent = `Жизни: ${state.hp}`;
+  scrapEl.textContent = `Трофеи: ${state.scrap}`;
   floorEl.textContent = `Этаж: ${state.floor}/${totalFloors} • ${preset.label}`;
 }
 
@@ -833,7 +842,11 @@ function attackEnemy(enemy) {
     const baseScrap = enemy.boss ? 5 : 2;
     const gainedScrap = Math.max(1, Math.round(baseScrap * preset.scrapMultiplier));
     state.scrap += gainedScrap;
-    setLog(enemy.boss ? `Босс уничтожен! +${gainedScrap} scrap.` : `Враг уничтожен! +${gainedScrap} scrap.`);
+    setLog(
+      enemy.boss
+        ? `Босс уничтожен! +${formatTrophies(gainedScrap)}.`
+        : `Враг уничтожен! +${formatTrophies(gainedScrap)}.`
+    );
   }
 }
 
@@ -898,7 +911,7 @@ function maybeFinishFloor() {
       lastPlayedAt: new Date().toISOString()
     });
     playSfx("win");
-    setLog(`Победа! Ты выбрался из метро с ${state.scrap} scrap.`);
+    setLog(`Победа! Ты выбрался из метро с ${formatTrophies(state.scrap)}.`);
     render();
     return true;
   }
