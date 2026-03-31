@@ -459,7 +459,7 @@ label {
 @media (max-width: 520px) {
   .app {
     gap: 6px;
-    padding: calc(8px + env(safe-area-inset-top)) 10px calc(10px + env(safe-area-inset-bottom));
+    padding: calc(8px + env(safe-area-inset-top)) 10px calc(86px + env(safe-area-inset-bottom));
   }
 
   .topbar h1 {
@@ -492,7 +492,7 @@ label {
     max-height: 33dvh;
     overflow-y: auto;
     margin-top: auto;
-    margin-bottom: env(safe-area-inset-bottom);
+    margin-bottom: 4px;
   }
 
   .log {
