@@ -944,6 +944,19 @@ function onTileTap(x, y) {
 
   const enemy = state.enemies.find((e) => e.x === x && e.y === y && e.hp > 0);
   const dist = manhattan(state.player, { x, y });
+  const isExit = state.exit.x === x && state.exit.y === y;
+
+  // Приоритетный сценарий: шаг на выход X
+  if (isExit && dist === 1) {
+    state.player.x = x;
+    state.player.y = y;
+    if (maybeFinishFloor()) return;
+    playSfx("move");
+    enemyTurn();
+    render();
+    maybeFinishFloor();
+    return;
+  }
 
   if (enemy && dist === 1) {
     attackEnemy(enemy);
