@@ -182,7 +182,7 @@ const AUDIO_FILES = {
   move: "./assets/sfx/move.mp3",
   attack: "./assets/sfx/attack.mp3",
   hit: "./assets/sfx/hit.mp3",
-  death: "./assets/sfx/death.mp3",
+  death: "./assets/sfx/you-died-45f.mp3",
   win: "./assets/sfx/the-sound-of-victory-winning.mp3",
   transition: "./assets/sfx/transition.mp3"
 };
