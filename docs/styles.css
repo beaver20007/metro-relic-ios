@@ -456,7 +456,7 @@ label {
 }
 
 /* FINAL OVERRIDE: мобильный веб, одинаковые кнопки без наложений */
-@media (max-width: 520px) {
+@media (max-width: 900px) {
   .controls,
   .info-controls {
     grid-template-columns: 1fr 1fr !important;
