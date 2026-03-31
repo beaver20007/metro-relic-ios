@@ -503,41 +503,47 @@ async function playSfx(kind) {
       )
     );
 
-    const el = audioElements[kind];
-    if (el) {
+    const tryDecodeBuffer = async () => {
+      const ctx = getAudioContext();
+      const buffer = audioBuffers[kind];
+      if (!ctx || !buffer) return false;
+      try {
+        if (ctx.state === "suspended") {
+          await ctx.resume();
+        }
+        if (ctx.state !== "running") return false;
+        const source = ctx.createBufferSource();
+        const gain = ctx.createGain();
+        source.buffer = buffer;
+        gain.gain.value = vol;
+        source.connect(gain);
+        gain.connect(ctx.destination);
+        source.start();
+        updateAudioStatus("mp3");
+        return true;
+      } catch (e) {
+        console.warn("Web Audio buffer play failed", kind, e);
+        return false;
+      }
+    };
+
+    const tryHtmlAudio = async () => {
+      const el = audioElements[kind];
+      if (!el) return false;
       try {
         const instance = el.cloneNode(true);
         instance.volume = vol;
         await instance.play();
         updateAudioStatus("mp3");
-        return;
+        return true;
       } catch (e) {
-        /* HTMLAudio может отказать (автовоспроизведение) — идём в Web Audio / синтез */
+        return false;
       }
-    }
+    };
 
-    const ctx = getAudioContext();
-    const buffer = audioBuffers[kind];
-    if (ctx && buffer) {
-      try {
-        if (ctx.state === "suspended") {
-          await ctx.resume();
-        }
-        if (ctx.state === "running") {
-          const source = ctx.createBufferSource();
-          const gain = ctx.createGain();
-          source.buffer = buffer;
-          gain.gain.value = vol;
-          source.connect(gain);
-          gain.connect(ctx.destination);
-          source.start();
-          updateAudioStatus("mp3");
-          return;
-        }
-      } catch (e) {
-        console.warn("Web Audio buffer play failed", kind, e);
-      }
-    }
+    /* Сначала декодированный буфер: на iOS (в т.ч. Chrome) заметно меньше задержка, чем у HTMLAudio. */
+    if (await tryDecodeBuffer()) return;
+    if (await tryHtmlAudio()) return;
 
     switch (kind) {
       case "move":
