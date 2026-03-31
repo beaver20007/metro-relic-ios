@@ -455,6 +455,26 @@ label {
   font-size: 1rem;
 }
 
+/* FINAL OVERRIDE: мобильный веб, одинаковые кнопки без наложений */
+@media (max-width: 520px) {
+  .controls,
+  .info-controls {
+    grid-template-columns: 1fr 1fr !important;
+  }
+
+  #settingsBtn,
+  #reportBugBtn {
+    grid-column: auto !important;
+    width: 100% !important;
+    display: block !important;
+  }
+
+  button {
+    min-height: 40px !important;
+    font-size: 0.84rem !important;
+  }
+}
+
 /* Финальная компактная верстка для iPhone */
 @media (max-width: 520px) {
   .app {
