@@ -905,24 +905,30 @@ function maybeFinishFloor() {
   return true;
 }
 
+function tryUseExit(x, y) {
+  const isExit = state.exit.x === x && state.exit.y === y;
+  if (!isExit) return false;
+
+  const dist = manhattan(state.player, { x, y });
+  // Разрешаем использовать выход, если стоим на нем или рядом с ним.
+  if (dist > 1) {
+    setLog("Подойди к выходу X вплотную.");
+    return true;
+  }
+
+  state.player.x = x;
+  state.player.y = y;
+  render();
+  maybeFinishFloor();
+  return true;
+}
+
 function onTileTap(x, y) {
   if (state.over) return;
+  if (tryUseExit(x, y)) return;
 
   const enemy = state.enemies.find((e) => e.x === x && e.y === y && e.hp > 0);
   const dist = manhattan(state.player, { x, y });
-  const isExit = state.exit.x === x && state.exit.y === y;
-
-  // Приоритетный сценарий: шаг на выход X
-  if (isExit && dist === 1) {
-    state.player.x = x;
-    state.player.y = y;
-    if (maybeFinishFloor()) return;
-    playSfx("move");
-    enemyTurn();
-    render();
-    maybeFinishFloor();
-    return;
-  }
 
   if (enemy && dist === 1) {
     attackEnemy(enemy);

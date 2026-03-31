@@ -368,6 +368,7 @@ button:active {
   display: grid;
   place-items: center;
   padding: 20px;
+  z-index: 60;
 }
 
 .hidden {
